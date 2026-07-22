@@ -139,8 +139,9 @@ tr:hover td{background:#fafafa}
 .pill{padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;display:inline-block;white-space:nowrap}
 .p-submitted{background:#dbeafe;color:#1e40af}.p-shortlisted{background:#d1fae5;color:#065f46}
 .p-selected{background:#d1fae5;color:#065f46}.p-rescheduled{background:#fef3c7;color:#92400e}.p-rejected{background:#fee2e2;color:#991b1b}
-.p-on-hold{background:#fef3c7;color:#92400e}.p-hold{background:#fef3c7;color:#92400e}
+.p-on-hold{background:#fef3c7;color:#92400e}.p-hold{background:#fef3c7;color:#92400e}.p-withdrawn{background:#f1f5f9;color:#475569}
 .p-l1{background:#ede9fe;color:#5b21b6}.p-l2{background:#dbeafe;color:#1e40af}
+.p-l3{background:#fce7f3;color:#9d174d}.p-l4{background:#fae8ff;color:#86198f}.p-hr{background:#ffedd5;color:#9a3412}
 .p-final{background:#d1fae5;color:#065f46}.p-offer{background:#fef3c7;color:#92400e}
 .p-scheduled{background:#e0f2fe;color:#0369a1}.p-cleared{background:#d1fae5;color:#065f46}
 .p-no-show{background:#fee2e2;color:#991b1b}
@@ -806,12 +807,13 @@ function vDash(){
     <div class="card"><div class="ct"><span>📅 Recent Interviews</span>
       <button class="btn btn-p btn-s" onclick="go('interviews')">+ Add</button></div>
       ${ri.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).length?`
-      <div class="tw"><table><thead><tr><th>Candidate</th><th>Client</th><th>Stage</th><th>Date</th><th>Outcome</th></tr></thead>
-      <tbody>${ri.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(i=>`<tr>
-        <td style="font-weight:600">${i.candidate}</td>
+      <div class="tw"><table><thead><tr><th>Candidate</th><th>Client</th><th>Stage</th><th>Date</th><th>Outcome</th><th></th></tr></thead>
+      <tbody>${ri.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map(i=>`<tr style="cursor:pointer" onclick="viewIvwDetails('${i.id}')">
+        <td style="font-weight:600;color:var(--p)">${i.candidate}</td>
         <td style="font-size:12px">${i.client}</td>
         <td><span class="pill p-${i.stage.toLowerCase()}">${i.stage}</span></td>
         <td>${i.date}</td><td><span class="pill p-${i.outcome}">${uc(i.outcome)}</span></td>
+        <td><button class="btn btn-s btn-p" onclick="event.stopPropagation();viewIvwDetails('${i.id}')">👁</button></td>
       </tr>`).join('')}</tbody></table></div>`:'<div class="empty">No interviews yet</div>'}
     </div>
   </div>`;
@@ -1114,6 +1116,86 @@ function viewSubDetails(id){
   `);
 }
 
+function viewIvwDetails(id){
+  const i=gIvws().find(x=>x.id===id);
+  if(!i){alert('Interview not found.');return;}
+  const relatedSub=gSubs().find(s=>s.rId===i.rId&&(s.id===i.subId||(s.candidate||'').toLowerCase().trim()===(i.candidate||'').toLowerCase().trim()));
+  const allRounds=gIvws().filter(x=>x.rId===i.rId&&(x.candidate||'').toLowerCase().trim()===(i.candidate||'').toLowerCase().trim()).sort((a,b)=>a.date.localeCompare(b.date));
+  const oc={'cleared':'#16a34a','rejected':'#dc2626','scheduled':'#0891b2','no-show':'#ca8a04','rescheduled':'#7c3aed'}[i.outcome]||'#6b7280';
+  const pill=(t,c)=>`<span style="display:inline-block;background:${c}18;color:${c};border:1px solid ${c}40;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:700">${t}</span>`;
+  const row=(label,val,full)=>`<div style="${full?'grid-column:1/-1':''}"><span style="font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:2px">${label}</span><span style="font-size:13px;color:#1e293b;font-weight:500">${val||'<em style="color:#cbd5e1">—</em>'}</span></div>`;
+  const roundRows=allRounds.map(r=>{
+    const rc={'cleared':'#16a34a','rejected':'#dc2626','scheduled':'#0891b2','no-show':'#ca8a04','rescheduled':'#7c3aed'}[r.outcome]||'#6b7280';
+    return `<tr style="border-bottom:1px solid #f1f5f9;${r.id===id?'background:#f5f3ff':''}">
+      <td style="padding:6px 8px;font-size:12px">${r.date}</td>
+      <td style="padding:6px 8px"><span style="background:#ede9fe;color:#4f46e5;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">${r.stage}</span></td>
+      <td style="padding:6px 8px;font-size:12px">${r.mode||'—'}</td>
+      <td style="padding:6px 8px;font-size:12px">${r.interviewer||'—'}</td>
+      <td style="padding:6px 8px"><span style="background:${rc}15;color:${rc};border:1px solid ${rc}30;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">${uc(r.outcome)}</span></td>
+      <td style="padding:6px 8px;font-size:11px;color:#6b7280">${r.notes||r.reason||'—'}</td>
+    </tr>`;
+  }).join('');
+
+  openModal('📅 Interview Details — '+i.candidate,`
+    <div style="max-height:78vh;overflow-y:auto;padding-right:4px">
+
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        ${pill(i.stage,'#4f46e5')}
+        ${pill(uc(i.outcome),oc)}
+        <span style="font-size:11px;color:#9ca3af">${i.date}${i.time?' at '+i.time:''}</span>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn btn-s btn-o" onclick="closeModal();editIvw('${id}')">✏ Update</button>
+          ${i.outcome==='cleared'?`<button class="btn btn-s btn-g" onclick="closeModal();manualPlace('${id}')">🏆 Mark Placed</button>`:''}
+          ${i.ivLink?`<a class="btn btn-s btn-o" href="https://${i.ivLink}" target="_blank">🔗 Join Link</a>`:''}
+        </div>
+      </div>
+
+      <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #ede9fe">Candidate Information</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 20px;margin-bottom:18px">
+        ${row('Full Name','<strong style="font-size:14px">'+i.candidate+'</strong>')}
+        ${row('Phone','<a href="tel:'+i.phone+'" style="color:#0891b2;text-decoration:none">📞 '+(i.phone||'—')+'</a>')}
+        ${row('Email','<a href="mailto:'+i.email+'" style="color:#0891b2;text-decoration:none">✉ '+(i.email||'—')+'</a>')}
+        ${row('Current CTC',i.currentCTC?(i.currentCTC+' LPA'):'')}
+        ${row('Expected CTC',i.expCTC?(i.expCTC+' LPA'):'')}
+        ${row('Notice Period',i.notice)}
+      </div>
+
+      <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #ede9fe">This Interview</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px 20px;margin-bottom:18px">
+        ${row('Client','<strong>'+i.client+'</strong>')}
+        ${row('Stage',pill(i.stage,'#4f46e5'))}
+        ${row('Mode',i.mode)}
+        ${row('Interviewer',i.interviewer)}
+        ${row('Outcome',pill(uc(i.outcome),oc))}
+        ${row('Rejection Reason',i.reason)}
+        ${i.notes?row('Notes / Feedback','<div style="background:#f8f7ff;padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.6;grid-column:1/-1">'+i.notes+'</div>',true):''}
+      </div>
+
+      <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #ede9fe">All Rounds for ${i.candidate} (${allRounds.length})</div>
+      <div style="overflow-x:auto;margin-bottom:16px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#f8f7ff">
+            <th style="padding:6px 8px;text-align:left;font-size:11px;color:#7c3aed">Date</th>
+            <th style="padding:6px 8px;text-align:left;font-size:11px;color:#7c3aed">Stage</th>
+            <th style="padding:6px 8px;text-align:left;font-size:11px;color:#7c3aed">Mode</th>
+            <th style="padding:6px 8px;text-align:left;font-size:11px;color:#7c3aed">Interviewer</th>
+            <th style="padding:6px 8px;text-align:left;font-size:11px;color:#7c3aed">Outcome</th>
+            <th style="padding:6px 8px;text-align:left;font-size:11px;color:#7c3aed">Notes</th>
+          </tr></thead>
+          <tbody>${roundRows}</tbody>
+        </table>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #f1f5f9">
+        ${relatedSub?`<button class="btn btn-o" onclick="closeModal();viewSubDetails('${relatedSub.id}')">📋 View Submission</button>`:''}
+        <button class="btn btn-p" onclick="closeModal();editIvw('${id}')">✏ Update Interview</button>
+        <button class="btn btn-d" style="margin-left:auto" onclick="closeModal();delIvw('${id}')">🗑 Delete</button>
+      </div>
+    </div>
+  `);
+}
+
+
 function delSub(id){
   if(!confirm('Delete submission?')) return;
   localStorage.removeItem('rpt_cv_'+id);
@@ -1273,7 +1355,7 @@ function vIvws(){
 function renderIvwsTbl(ivws){
   if(!ivws.length) return '<div class="empty"><div class="ei">📅</div>No interviews yet.</div>';
   return `<div class="tw"><table>
-    <thead><tr><th>#</th><th>Candidate</th><th>Phone</th><th>Email</th><th>CTC→Exp</th><th>Notice</th><th>Client</th><th>Stage</th><th>Date</th><th>Time</th><th>Mode</th><th>Interviewer</th><th>Outcome</th><th>Reason</th><th>Actions</th></tr></thead>
+    <thead><tr><th>#</th><th>Candidate</th><th>Phone</th><th>Email</th><th>CTC→Exp</th><th>Notice</th><th>Client</th><th>Stage</th><th>Date</th><th>Time</th><th>Mode</th><th>Interviewer</th><th>Outcome</th><th>Reason</th><th>Notes</th><th>Actions</th></tr></thead>
     <tbody>${ivws.map((i,idx)=>`<tr class="${i.date===fmt(today)?'today-row':''}">
       <td style="color:var(--muted);font-size:10px">${idx+1}</td>
       <td style="font-weight:700;white-space:nowrap">${i.candidate}</td>
@@ -1289,6 +1371,7 @@ function renderIvwsTbl(ivws){
       <td style="font-size:12px">${i.interviewer||'—'}</td>
       <td><span class="pill p-${i.outcome}">${uc(i.outcome)}</span></td>
       <td style="font-size:11px;color:var(--muted)">${i.reason||'—'}</td>
+      <td style="font-size:11px;color:var(--text);max-width:160px;white-space:normal;line-height:1.4">${i.notes?(i.notes.length>60?i.notes.slice(0,60)+'…':i.notes):'<span style="color:var(--muted)">—</span>'}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-s btn-o" onclick="editIvw('${i.id}')">✏</button>${i.outcome==='cleared'?`<button class="btn btn-s btn-g" onclick="manualPlace('${i.id}')" title="Confirm Placement">🏆</button>`:''}
         <button class="btn btn-s btn-d" onclick="delIvw('${i.id}')">✕</button>
@@ -1399,7 +1482,7 @@ function editIvw(id){
         <select id="eIO">${['scheduled','cleared','rejected','no-show','rescheduled'].map(o=>`<option value="${o}" ${i.outcome===o?'selected':''}>${uc(o)}</option>`).join('')}</select></div>
       <div class="fg"><label>Rejection Reason</label>
         <select id="eIR"><option value="">—</option>${['Technical gap','Communication','Salary mismatch','Notice period','Culture fit','Better candidate','Client cancelled'].map(r=>`<option ${i.reason===r?'selected':''}>${r}</option>`).join('')}</select></div>
-      <div class="fg"><label>Notes</label><input id="eIN" value="${i.notes||''}"></div>
+      <div class="fg" style="grid-column:1/-1"><label>Notes / Feedback</label><textarea id="eIN" rows="3" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;resize:vertical">${i.notes||''}</textarea></div>
     </div>
     <button class="btn btn-p" onclick="saveIvw('${id}')">Save</button>`);
 }
@@ -1522,6 +1605,38 @@ function changeRecPin(){
 // ══════════════════════════════════════════════════════
 // ── ADMIN VIEWS ───────────────────────────────────────
 // ══════════════════════════════════════════════════════
+
+function vRecPlacements(){
+  const rec=gRecs().find(r=>r.id===S.rId);
+  const placed=gSubs().filter(s=>s.rId===S.rId&&s.status==='selected').sort((a,b)=>(b.placedDate||b.date).localeCompare(a.placedDate||a.date));
+  const mPlaced=placed.filter(s=>inP(s.placedDate||s.date,'month'));
+  const totalCTC=placed.reduce((sum,s)=>sum+(parseFloat(s.expCTC)||parseFloat(s.currentCTC)||0),0);
+  const avgCTC=placed.length?(totalCTC/placed.length).toFixed(1):0;
+  return `
+  <div class="sg">
+    <div class="sc scg"><div class="si">🏆</div><div class="sl">Total Placements</div><div class="sv">${placed.length}</div>
+      <div class="ss">${rec&&rec.target_place?'Target: '+rec.target_place:'All-time'}</div></div>
+    <div class="sc scb"><div class="si">📅</div><div class="sl">This Month</div><div class="sv">${mPlaced.length}</div>
+      <div class="ss">Placed in ${new Date().toLocaleDateString('en-IN',{month:'long'})}</div></div>
+    <div class="sc scc"><div class="si">💰</div><div class="sl">Avg CTC</div><div class="sv">${avgCTC}</div><div class="ss">LPA across placements</div></div>
+  </div>
+  <div class="card">
+    <div class="ct"><span>🏆 My Placements (${placed.length})</span></div>
+    ${placed.length?`
+    <div class="tw"><table>
+      <thead><tr><th>Candidate</th><th>Client</th><th>Position</th><th>Stage</th><th>Placed Date</th><th>CTC (LPA)</th><th></th></tr></thead>
+      <tbody>${placed.map(s=>`<tr style="cursor:pointer" onclick="viewSubDetails('${s.id}')">
+        <td style="font-weight:600;color:var(--p)">${s.candidate}</td>
+        <td>${s.client}</td>
+        <td style="font-size:12px">${s.position}</td>
+        <td>${s.placedStage?`<span class="pill p-${s.placedStage.toLowerCase()}">${s.placedStage}</span>`:'—'}</td>
+        <td>${s.placedDate||s.date}</td>
+        <td style="font-size:12px">${s.expCTC||s.currentCTC||'—'}</td>
+        <td><button class="btn btn-s btn-p" onclick="event.stopPropagation();viewSubDetails('${s.id}')">👁</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`:'<div class="empty"><div class="ei">🏆</div>No placements yet. Keep sourcing — your first one is coming!</div>'}
+  </div>`;
+}
 
 function vAdminOv(){
   const recs=gRecs(),subs=gSubs(),ivws=gIvws(),p=S.fp;
@@ -2601,8 +2716,9 @@ function vJDLib(){
         <div>${j.skills?j.skills.split(',').map(s=>`<span style='display:inline-block;background:#d1fae5;color:#065f46;padding:2px 9px;border-radius:12px;font-size:12px;margin:2px'>${s.trim()}</span>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}</div>
       </div>
       <div style="margin-bottom:10px;background:#fdf2f8;border:1px solid #fbcfe8;border-radius:10px;padding:12px 14px">
-        <div style="font-size:10px;font-weight:700;color:#db2777;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🏷 Naukri Title Tags</div>
-        <div>${j.titleTags?j.titleTags.split(',').map(s=>`<span style='display:inline-block;background:#fce7f3;color:#831843;padding:2px 9px;border-radius:12px;font-size:12px;margin:2px'>${s.trim()}</span>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}</div>
+        <div style="font-size:10px;font-weight:700;color:#db2777;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🏷 Naukri Title Tags <span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;font-size:10px">— click a tag to copy it</span></div>
+        <div>${j.titleTags?j.titleTags.split(',').map(s=>`<span onclick="event.stopPropagation();(function(el,txt){copyTxt(txt,()=>{const o=el.textContent;el.textContent='✓ Copied';setTimeout(()=>{el.textContent=o;},1200);});})(this,'${s.trim().replace(/'/g,"\\'")}')" title="Click to copy this tag" style='display:inline-block;background:#fce7f3;color:#831843;padding:3px 10px;border-radius:12px;font-size:12px;margin:2px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:background .15s,border-color .15s' onmouseover="this.style.background='#f9a8d4';this.style.borderColor='#db2777'" onmouseout="this.style.background='#fce7f3';this.style.borderColor='transparent'">${s.trim()} 📋</span>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}</div>
+        ${j.titleTags?`<button onclick="event.stopPropagation();copyTxt('${j.titleTags.replace(/'/g,"\\'")}',()=>alert('All Naukri title tags copied!'))" style="margin-top:4px;background:#db2777;color:white;border:none;padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer">📋 Copy All Tags</button>`:''}
       </div>
       </div><div style="margin-bottom:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px">
         <div style="font-size:10px;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🏢 Ideal Target Companies</div>
@@ -2611,10 +2727,10 @@ function vJDLib(){
       <div style="margin-bottom:10px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 14px">
         <div style="font-size:10px;font-weight:700;color:#4f46e5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🔍 Naukri Boolean Strings</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.naukri||'';navigator.clipboard.writeText(t).then(()=>alert('Boolean 1 (Standard) copied!'));})();event.stopPropagation()" style="background:#4f46e5;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 1 — Standard</button>
-          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.broad||'';navigator.clipboard.writeText(t).then(()=>alert('Boolean 2 (Broader) copied!'));})();event.stopPropagation()" style="background:#0891b2;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 2 — Broader</button>
-          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.senior||'';navigator.clipboard.writeText(t).then(()=>alert('Boolean 3 (Senior) copied!'));})();event.stopPropagation()" style="background:#7c3aed;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 3 — Senior</button>
-          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.li||'';navigator.clipboard.writeText(t).then(()=>alert('LinkedIn Boolean copied!'));})();event.stopPropagation()" style="background:#0a66c2;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">🔗 LinkedIn Boolean</button>
+          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.naukri||'';copyTxt(t,()=>alert('Boolean 1 (Standard) copied!'));})();event.stopPropagation()" style="background:#4f46e5;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 1 — Standard</button>
+          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.broad||'';copyTxt(t,()=>alert('Boolean 2 (Broader) copied!'));})();event.stopPropagation()" style="background:#0891b2;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 2 — Broader</button>
+          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.senior||'';copyTxt(t,()=>alert('Boolean 3 (Senior) copied!'));})();event.stopPropagation()" style="background:#7c3aed;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 3 — Senior</button>
+          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.li||'';copyTxt(t,()=>alert('LinkedIn Boolean copied!'));})();event.stopPropagation()" style="background:#0a66c2;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">🔗 LinkedIn Boolean</button>
         </div>
         <div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:#4f46e5;margin-bottom:3px">📌 NAUKRI BOOLEAN 1 — STANDARD (copy-paste into Naukri keyword search)</div><code style="display:block;background:#f5f3ff;padding:8px;border-radius:6px;font-size:11px;word-break:break-all;white-space:pre-wrap;border:1px solid #ddd6fe">${bool}</code></div>
         <details><summary style="font-size:11px;color:var(--muted);cursor:pointer;user-select:none">▶ Show Boolean 2 (Broader) / Boolean 3 (Senior) / LinkedIn</summary>
@@ -2630,14 +2746,14 @@ function vJDLib(){
         <div style="background:white;border:1px solid #bae6fd;border-radius:8px;padding:10px">
           ${j.screeningQs?j.screeningQs.split('\n').filter(Boolean).map(q=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px dashed #bae6fd;color:var(--text)">${q}</div>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}
         </div>
-        ${j.screeningQs?`<button onclick="(()=>{navigator.clipboard.writeText(${JSON.stringify(j.screeningQs||'')}).then(()=>alert('Screening Qs copied!'));})();event.stopPropagation()" style="margin-top:6px;background:#0369a1;color:white;border:none;padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Copy All Screening Questions</button>`:''}
+        ${j.screeningQs?`<button onclick="(()=>{copyTxt(${JSON.stringify(j.screeningQs||'')},()=>alert('Screening Qs copied!'));})();event.stopPropagation()" style="margin-top:6px;background:#0369a1;color:white;border:none;padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Copy All Screening Questions</button>`:''}
       </div>
       <div style="margin-bottom:10px;background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:12px 14px">
         <div style="font-size:10px;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🚫 Knockout Questions</div>
         <div style="background:white;border:1px solid #fecdd3;border-radius:8px;padding:10px">
           ${j.knockoutQs?j.knockoutQs.split('\n').filter(Boolean).map(q=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px dashed #fecdd3;color:var(--text)">${q}</div>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}
         </div>
-        ${j.knockoutQs?`<button onclick="(()=>{navigator.clipboard.writeText(${JSON.stringify(j.knockoutQs||'')}).then(()=>alert('Knockout Qs copied!'));})();event.stopPropagation()" style="margin-top:6px;background:#b91c1c;color:white;border:none;padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Copy Knockout Questions</button>`:''}
+        ${j.knockoutQs?`<button onclick="(()=>{copyTxt(${JSON.stringify(j.knockoutQs||'')},()=>alert('Knockout Qs copied!'));})();event.stopPropagation()" style="margin-top:6px;background:#b91c1c;color:white;border:none;padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Copy Knockout Questions</button>`:''}
       </div>
       </div>
       ${tips.length?`<div style="margin-bottom:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:#c2410c;text-transform:uppercase;margin-bottom:5px">💡 Sourcing Tips</div>${tips.map(t=>`<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #fed7aa">${t}</div>`).join('')}</div>`:''}
@@ -2936,6 +3052,25 @@ async function aiFillSmart(){
     if(btn){btn.innerHTML=orig;btn.disabled=false;}
     alert('Claude AI call failed ('+err.message+').\nUsing the built-in rules engine instead.');
     autoFillFromJD();
+  }
+}
+
+function copyTxt(text,onOk){
+  function fallback(){
+    try{
+      const ta=document.createElement('textarea');
+      ta.value=text;ta.style.position='fixed';ta.style.left='-9999px';ta.style.top='0';ta.style.opacity='0';
+      document.body.appendChild(ta);ta.focus();ta.select();
+      const ok=document.execCommand('copy');
+      document.body.removeChild(ta);
+      if(ok){if(onOk)onOk();return;}
+    }catch(e){}
+    window.prompt('Auto-copy was blocked by the browser. Press Ctrl+C (or Cmd+C on Mac) to copy, then Enter:',text);
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){if(onOk)onOk();}).catch(fallback);
+  }else{
+    fallback();
   }
 }
 
@@ -3890,10 +4025,10 @@ function openExport(){
       <button class="btn btn-o" onclick="expCSV('ivws')">Interviews CSV</button>
     </div>`);
 }
-function expCSV(type){expReport(type);}
 function expCSV(type){
   const isS=type==='subs';
-  const rows=isS?gSubs():gIvws();
+  let rows=isS?gSubs():gIvws();
+  if(S.role==='rec') rows=rows.filter(r=>r.rId===S.rId);
   let filtered=rows;
   if(isS){
     const f=_subFlt||{};
@@ -3901,7 +4036,7 @@ function expCSV(type){
     if(f.dr) filtered=filtered.filter(r=>_inRange(r.date,f.dr));
   } else {
     const f=ivwF||{};
-    if(f.stage) filtered=filtered.filter(r=>r.round===f.stage);
+    if(f.stage) filtered=filtered.filter(r=>r.stage===f.stage);
     if(f.outcome) filtered=filtered.filter(r=>r.outcome===f.outcome);
     if(f.dr) filtered=filtered.filter(r=>_inRange(r.date,f.dr));
   }
@@ -3913,10 +4048,9 @@ function expCSV(type){
       csv+=[i+1,r.candidate,r.phone,r.phone2||'',r.email,r.currentCo,r.currentCTC,r.expCTC,r.notice,r.exp,r.relevantExp||'',r.education||'',r.loc,r.prefLoc||'',r.source,r.client,r.position,r.date,r.status,r.resume,r.notes||''].map(esc).join(',')+'\r\n';
     });
   } else {
-    csv='No.,Candidate,Phone,Client,Position,Round,Date,Venue/Mode,Outcome,Feedback\r\n';
+    csv='No.,Candidate,Phone,Email,Client,Position,Stage,Date,Time,Mode,Interviewer,Outcome,Reason,Notes\r\n';
     filtered.forEach((r,i)=>{
-      const s=gSubs().find(x=>x.id===r.subId)||{};
-      csv+=[i+1,s.candidate||r.subId,s.phone||'',s.client||'',s.position||'',r.round,r.date,r.venue||'',r.outcome,r.feedback||''].map(esc).join(',')+'\r\n';
+      csv+=[i+1,r.candidate||'',r.phone||'',r.email||'',r.client||'',r.position||'',r.stage||'',r.date||'',r.time||'',r.mode||'',r.interviewer||'',uc(r.outcome||''),r.reason||'',r.notes||''].map(esc).join(',')+'\r\n';
     });
   }
   const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
@@ -5008,8 +5142,9 @@ function vRecJDLib(){
         <div>${j.skills?j.skills.split(',').map(s=>`<span style='display:inline-block;background:#d1fae5;color:#065f46;padding:2px 9px;border-radius:12px;font-size:12px;margin:2px'>${s.trim()}</span>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}</div>
       </div>
       <div style="margin-bottom:10px;background:#fdf2f8;border:1px solid #fbcfe8;border-radius:10px;padding:12px 14px">
-        <div style="font-size:10px;font-weight:700;color:#db2777;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🏷 Naukri Title Tags</div>
-        <div>${j.titleTags?j.titleTags.split(',').map(s=>`<span style='display:inline-block;background:#fce7f3;color:#831843;padding:2px 9px;border-radius:12px;font-size:12px;margin:2px'>${s.trim()}</span>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}</div>
+        <div style="font-size:10px;font-weight:700;color:#db2777;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🏷 Naukri Title Tags <span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;font-size:10px">— click a tag to copy it</span></div>
+        <div>${j.titleTags?j.titleTags.split(',').map(s=>`<span onclick="event.stopPropagation();(function(el,txt){copyTxt(txt,()=>{const o=el.textContent;el.textContent='✓ Copied';setTimeout(()=>{el.textContent=o;},1200);});})(this,'${s.trim().replace(/'/g,"\\'")}')" title="Click to copy this tag" style='display:inline-block;background:#fce7f3;color:#831843;padding:3px 10px;border-radius:12px;font-size:12px;margin:2px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:background .15s,border-color .15s' onmouseover="this.style.background='#f9a8d4';this.style.borderColor='#db2777'" onmouseout="this.style.background='#fce7f3';this.style.borderColor='transparent'">${s.trim()} 📋</span>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}</div>
+        ${j.titleTags?`<button onclick="event.stopPropagation();copyTxt('${j.titleTags.replace(/'/g,"\\'")}',()=>alert('All Naukri title tags copied!'))" style="margin-top:4px;background:#db2777;color:white;border:none;padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer">📋 Copy All Tags</button>`:''}
       </div>
       </div><div style="margin-bottom:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px">
         <div style="font-size:10px;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🏢 Ideal Target Companies</div>
@@ -5018,10 +5153,10 @@ function vRecJDLib(){
       <div style="margin-bottom:10px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 14px">
         <div style="font-size:10px;font-weight:700;color:#4f46e5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🔍 Naukri Boolean Strings</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.naukri||'';navigator.clipboard.writeText(t).then(()=>alert('Boolean 1 copied!'));})();event.stopPropagation()" style="background:#4f46e5;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 1 — Standard</button>
-          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.broad||'';navigator.clipboard.writeText(t).then(()=>alert('Boolean 2 copied!'));})();event.stopPropagation()" style="background:#0891b2;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 2 — Broader</button>
-          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.senior||'';navigator.clipboard.writeText(t).then(()=>alert('Boolean 3 copied!'));})();event.stopPropagation()" style="background:#7c3aed;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 3 — Senior</button>
-          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.li||'';navigator.clipboard.writeText(t).then(()=>alert('LinkedIn Boolean copied!'));})();event.stopPropagation()" style="background:#0a66c2;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">🔗 LinkedIn Boolean</button>
+          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.naukri||'';copyTxt(t,()=>alert('Boolean 1 copied!'));})();event.stopPropagation()" style="background:#4f46e5;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 1 — Standard</button>
+          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.broad||'';copyTxt(t,()=>alert('Boolean 2 copied!'));})();event.stopPropagation()" style="background:#0891b2;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 2 — Broader</button>
+          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.senior||'';copyTxt(t,()=>alert('Boolean 3 copied!'));})();event.stopPropagation()" style="background:#7c3aed;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 3 — Senior</button>
+          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.li||'';copyTxt(t,()=>alert('LinkedIn Boolean copied!'));})();event.stopPropagation()" style="background:#0a66c2;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">🔗 LinkedIn Boolean</button>
         </div>
         <div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:#4f46e5;margin-bottom:3px">📌 NAUKRI BOOLEAN 1 — STANDARD (copy-paste into Naukri keyword search)</div><code style="display:block;background:#f5f3ff;padding:8px;border-radius:6px;font-size:11px;word-break:break-all;white-space:pre-wrap;border:1px solid #ddd6fe">${bool}</code></div>
         <details><summary style="font-size:11px;color:var(--muted);cursor:pointer;user-select:none">▶ Show Boolean 2 (Broader) / Boolean 3 (Senior) / LinkedIn</summary>
@@ -5037,14 +5172,14 @@ function vRecJDLib(){
         <div style="background:white;border:1px solid #bae6fd;border-radius:8px;padding:10px">
           ${j.screeningQs?j.screeningQs.split('\n').filter(Boolean).map(q=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px dashed #bae6fd;color:var(--text)">${q}</div>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}
         </div>
-        ${j.screeningQs?`<button onclick="(()=>{navigator.clipboard.writeText(${JSON.stringify(j.screeningQs||'')}).then(()=>alert('Copied!'));})();event.stopPropagation()" style="margin-top:6px;background:#0369a1;color:white;border:none;padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Copy Screening Questions</button>`:''}
+        ${j.screeningQs?`<button onclick="(()=>{copyTxt(${JSON.stringify(j.screeningQs||'')},()=>alert('Copied!'));})();event.stopPropagation()" style="margin-top:6px;background:#0369a1;color:white;border:none;padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Copy Screening Questions</button>`:''}
       </div>
       <div style="margin-bottom:10px;background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:12px 14px">
         <div style="font-size:10px;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🚫 Knockout Questions</div>
         <div style="background:white;border:1px solid #fecdd3;border-radius:8px;padding:10px">
           ${j.knockoutQs?j.knockoutQs.split('\n').filter(Boolean).map(q=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px dashed #fecdd3;color:var(--text)">${q}</div>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}
         </div>
-        ${j.knockoutQs?`<button onclick="(()=>{navigator.clipboard.writeText(${JSON.stringify(j.knockoutQs||'')}).then(()=>alert('Copied!'));})();event.stopPropagation()" style="margin-top:6px;background:#b91c1c;color:white;border:none;padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Copy Knockout Questions</button>`:''}
+        ${j.knockoutQs?`<button onclick="(()=>{copyTxt(${JSON.stringify(j.knockoutQs||'')},()=>alert('Copied!'));})();event.stopPropagation()" style="margin-top:6px;background:#b91c1c;color:white;border:none;padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Copy Knockout Questions</button>`:''}
       </div>
       </div>
       ${tips.length?`<div style="margin-bottom:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:#c2410c;text-transform:uppercase;margin-bottom:5px">💡 Sourcing Tips</div>${tips.map(t=>`<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #fed7aa">${t}</div>`).join('')}</div>`:''}
@@ -5339,6 +5474,7 @@ function vFollowUp(){
     }).join(''));
 }
 
+// ── BOOT ───────────────────────────────────────────────
 // ── BOOT (Firestore real-time sync) ────────────────────
 let FIRST_LOAD=true;
 docRef.onSnapshot(snap=>{
