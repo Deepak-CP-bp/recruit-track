@@ -84,6 +84,32 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .badge{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
 .ba{background:#fef3c7;color:#92400e}.br{background:#dbeafe;color:#1e40af}
 .content{padding:22px 26px;flex:1}
+.sb-toggle{display:none;background:none;border:1px solid var(--border);cursor:pointer;font-size:17px;
+  padding:5px 10px;border-radius:8px;color:var(--text);flex-shrink:0;font-family:inherit}
+.sb-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:99}
+.sb-overlay.show{display:block}
+
+/* RESPONSIVE / MOBILE */
+@media(max-width:900px){
+  .sidebar{transform:translateX(-100%);transition:transform .25s ease;box-shadow:2px 0 18px rgba(0,0,0,.25)}
+  .sidebar.open{transform:translateX(0)}
+  .main{margin-left:0}
+  .sb-toggle{display:inline-flex;align-items:center;justify-content:center}
+  .topbar{padding:11px 14px;flex-wrap:wrap;gap:8px}
+  .content{padding:14px}
+  .ct{flex-wrap:wrap;gap:8px}
+  .fg2,.fg3{grid-template-columns:1fr}
+  .sg{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+  .tbr{flex-wrap:wrap;gap:6px;justify-content:flex-end}
+  .lw{max-width:100%}
+}
+@media(max-width:560px){
+  .topbar h2{font-size:15px}
+  .sv{font-size:22px}
+  .content{padding:10px}
+  table{font-size:11.5px}
+  th,td{padding:7px 8px}
+}
 
 /* STAT CARDS */
 .sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:13px;margin-bottom:20px}
@@ -306,9 +332,13 @@ tr:hover td{background:#fafafa}
     <nav id="sbNav"></nav>
     <div class="sb-out"><button onclick="logout()">⬅ Logout</button></div>
   </aside>
+  <div class="sb-overlay" id="sbOverlay" onclick="closeSidebar()"></div>
   <main class="main">
     <div class="topbar">
-      <div><h2 id="topTitle"></h2><p id="topSub"></p></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="sb-toggle" id="sbToggle" onclick="toggleSidebar()" aria-label="Menu">☰</button>
+        <div><h2 id="topTitle"></h2><p id="topSub"></p></div>
+      </div>
       <div class="tbr">
         <span class="badge" id="topBadge"></span>
         <span id="fbStatus" style="font-size:11px;color:var(--muted);display:none"></span>
@@ -369,6 +399,8 @@ const SI=[
   {id:'i10',rId:'r4',candidate:'Harish Nanda',phone:'9912567890',email:'harish.n@gmail.com',client:'TCS',position:'SAP Consultant',stage:'L2',date:df(2),time:'10:30 AM',mode:'Phone',interviewer:'Suresh Kumar',ivLink:'',outcome:'scheduled',reason:'',notes:''},
 ];
 
+// ── FIREBASE CONFIG ─────────────────────────────────────
+// ┌─────────────────────────────────────────────────────────┐
 // ── FIREBASE + FIRESTORE ────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyC1MuP7yZEr0UqDE2yjFqZj0Xe5D3u5OWA",
@@ -413,6 +445,9 @@ const gOnboard=()=>DB.g('onboarding',[]);
 const gBilling=()=>DB.g('billing',[]);
 const gJDs=()=>DB.g('jds',[]);
 const gClients=()=>DB.g('clients',['TCS','Infosys','Wipro','Accenture','Google','Amazon','HCL','Capgemini','Tech Mahindra','IBM']);
+const clientName=c=>typeof c==='string'?c:(c&&c.name)||'';
+const clientLoc=c=>typeof c==='object'&&c?(c.location||''):'';
+const gClientNames=()=>gClients().map(clientName).filter(Boolean);
 const gMgrs=()=>DB.g('managers',[]);
 
 // ── STATE ──────────────────────────────────────────────
@@ -619,6 +654,7 @@ function buildSidebar(){
       <div class="ni" data-v="admin-leaderboard" onclick="go('admin-leaderboard')">🏆 Leaderboard</div>
       <div class="sb-sec">Pipeline</div>
       <div class="ni" data-v="admin-schedule" onclick="go('admin-schedule')">${IC.cal} Interview Schedule</div>
+      <div class="ni" data-v="mgr-jdlib" onclick="go('mgr-jdlib')">📁 JD Library</div>
       <div class="ni" data-v="admin-reengagement" onclick="go('admin-reengagement')">♻️ Re-engagement</div>
       <div class="sb-sec">Alerts</div>
       <div class="ni" data-v="admin-sla" onclick="go('admin-sla')">🔔 SLA Alerts</div>
@@ -654,7 +690,7 @@ function buildSidebar(){
 
 // ── NAV ────────────────────────────────────────────────
 const VT={'dashboard':'My Dashboard','submissions':'My Submissions','interviews':'My Interviews',
-  'rec-settings':'Settings & PIN','rec-jdlib':'📁 JD Library','rec-placements':'🏆 My Placements','admin-overview':'Team Overview','admin-schedule':'Interview Schedule',
+  'rec-settings':'Settings & PIN','rec-jdlib':'📁 JD Library','rec-placements':'🏆 My Placements','mgr-jdlib':'📁 JD Library','admin-overview':'Team Overview','admin-schedule':'Interview Schedule',
   'admin-team':'Recruiter Performance','admin-clients':'Client Analytics',
   'admin-manage':'Manage Recruiters','admin-settings':'Admin Settings',
   'admin-rec-detail':'Recruiter Dashboard','admin-leaderboard':'🏆 Leaderboard',
@@ -665,7 +701,16 @@ const VT={'dashboard':'My Dashboard','submissions':'My Submissions','interviews'
   'admin-aging':'📉 Aging Report','admin-templates':'✉️ Email Templates',
   'admin-jdlib':'📁 JD Library','admin-followup':'🔔 Follow-Up Queue'};
 
+function toggleSidebar(){
+  document.getElementById('sidebar')?.classList.toggle('open');
+  document.getElementById('sbOverlay')?.classList.toggle('show');
+}
+function closeSidebar(){
+  document.getElementById('sidebar')?.classList.remove('open');
+  document.getElementById('sbOverlay')?.classList.remove('show');
+}
 function go(v){
+  if(window.innerWidth<=900) closeSidebar();
   S.view=v;
   document.querySelectorAll('.ni').forEach(n=>n.classList.toggle('active',n.dataset.v===v));
   document.getElementById('topTitle').textContent=VT[v]||v;
@@ -708,6 +753,7 @@ function render(){
     case 'admin-aging': el.innerHTML=vAging(); break;
     case 'admin-templates': el.innerHTML=vTemplates(); break;
     case 'admin-jdlib': el.innerHTML=vJDLib(); break;
+    case 'mgr-jdlib': el.innerHTML=vMgrJDLib(); break;
     case 'admin-followup': el.innerHTML=vFollowUp(); break;
     default: el.innerHTML='<div class="empty">Coming soon</div>';
   }
@@ -890,7 +936,7 @@ function vSubs(){
         <div class="fg"><label>Client / Company *</label>
           <select name="client" required onchange="const o=document.getElementById('subClientOther');o.style.display=this.value==='__other__'?'block':'none';o.required=this.value==='__other__'">
             <option value="">— Select client —</option>
-            ${gClients().map(c=>`<option value="${c}">${c}</option>`).join('')}
+            ${gClientNames().map(c=>`<option value="${c}">${c}</option>`).join('')}
             <option value="__other__">Other (type below)…</option>
           </select>
           <input name="clientOther" id="subClientOther" placeholder="Type client name" style="display:none;margin-top:5px">
@@ -1214,7 +1260,7 @@ function dlCV(id){
 }
 function editSub(id){
   const s=gSubs().find(x=>x.id===id); if(!s) return;
-  const cl=gClients();
+  const cl=gClientNames();
   const clientInList=cl.includes(s.client);
   openModal('Edit Submission — '+s.candidate,
     '<div class="fg3" style="gap:10px;margin-bottom:12px">'+
@@ -1303,7 +1349,7 @@ function vIvws(){
         <div class="fg"><label>Client / Company *</label>
           <select name="client" id="ivClient" required onchange="const o=document.getElementById('ivClientOther');o.style.display=this.value==='__other__'?'block':'none';o.required=this.value==='__other__'">
             <option value="">— Select client —</option>
-            ${gClients().map(c=>`<option value="${c}">${c}</option>`).join('')}
+            ${gClientNames().map(c=>`<option value="${c}">${c}</option>`).join('')}
             <option value="__other__">Other (type below)…</option>
           </select>
           <input name="clientOther" id="ivClientOther" placeholder="Type client name" style="display:none;margin-top:5px">
@@ -1608,35 +1654,51 @@ function changeRecPin(){
 
 function vRecPlacements(){
   const rec=gRecs().find(r=>r.id===S.rId);
+  const offers=gOffers(),onb=gOnboard();
+  const norm=n=>(n||'').toLowerCase().trim();
+  const findOffer=s=>offers.find(o=>o.rId===s.rId&&norm(o.candidate)===norm(s.candidate)&&norm(o.client)===norm(s.client));
+  const findOnb=s=>onb.find(o=>o.rId===s.rId&&norm(o.candidate)===norm(s.candidate)&&norm(o.client)===norm(s.client));
   const placed=gSubs().filter(s=>s.rId===S.rId&&s.status==='selected').sort((a,b)=>(b.placedDate||b.date).localeCompare(a.placedDate||a.date));
   const mPlaced=placed.filter(s=>inP(s.placedDate||s.date,'month'));
   const totalCTC=placed.reduce((sum,s)=>sum+(parseFloat(s.expCTC)||parseFloat(s.currentCTC)||0),0);
   const avgCTC=placed.length?(totalCTC/placed.length).toFixed(1):0;
+  const offerAccepted=placed.filter(s=>{const o=findOffer(s);return o&&o.status==='accepted';}).length;
+  const onboarded=placed.filter(s=>{const o=findOnb(s);return o&&o.status==='joined';}).length;
+  const offerPillStyle={pending:'background:#fef3c7;color:#92400e',accepted:'background:#d1fae5;color:#065f46',declined:'background:#fee2e2;color:#991b1b'};
+  const obPillStyle={pending:'background:#fef3c7;color:#92400e',joined:'background:#d1fae5;color:#065f46','no-show':'background:#fee2e2;color:#991b1b',absconded:'background:#fee2e2;color:#991b1b'};
   return `
   <div class="sg">
     <div class="sc scg"><div class="si">🏆</div><div class="sl">Total Placements</div><div class="sv">${placed.length}</div>
       <div class="ss">${rec&&rec.target_place?'Target: '+rec.target_place:'All-time'}</div></div>
     <div class="sc scb"><div class="si">📅</div><div class="sl">This Month</div><div class="sv">${mPlaced.length}</div>
       <div class="ss">Placed in ${new Date().toLocaleDateString('en-IN',{month:'long'})}</div></div>
-    <div class="sc scc"><div class="si">💰</div><div class="sl">Avg CTC</div><div class="sv">${avgCTC}</div><div class="ss">LPA across placements</div></div>
+    <div class="sc scc"><div class="si">🤝</div><div class="sl">Offer Accepted</div><div class="sv">${offerAccepted}</div><div class="ss">of ${placed.length} placements</div></div>
+    <div class="sc sca"><div class="si">🚀</div><div class="sl">Onboarded</div><div class="sv">${onboarded}</div><div class="ss">Joined so far</div></div>
   </div>
   <div class="card">
-    <div class="ct"><span>🏆 My Placements (${placed.length})</span></div>
+    <div class="ct"><span>🏆 My Placements (${placed.length})</span><span style="font-size:11px;color:var(--muted)">Avg CTC: ${avgCTC} LPA</span></div>
     ${placed.length?`
     <div class="tw"><table>
-      <thead><tr><th>Candidate</th><th>Client</th><th>Position</th><th>Stage</th><th>Placed Date</th><th>CTC (LPA)</th><th></th></tr></thead>
-      <tbody>${placed.map(s=>`<tr style="cursor:pointer" onclick="viewSubDetails('${s.id}')">
+      <thead><tr><th>Candidate</th><th>Client</th><th>Position</th><th>Stage</th><th>Placed Date</th><th>CTC (LPA)</th><th>Offer Status</th><th>Onboarding</th><th></th></tr></thead>
+      <tbody>${placed.map(s=>{
+        const o=findOffer(s),ob=findOnb(s);
+        const offerCell=o?`<span style="${offerPillStyle[o.status]||''};padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700">${uc(o.status)}</span>`:`<button class="btn btn-s btn-o" onclick="event.stopPropagation();openAddOfferFor('${(s.candidate||'').replace(/'/g,"\\'")}','${(s.client||'').replace(/'/g,"\\'")}','${s.rId}','${(s.position||'').replace(/'/g,"\\'")}')">+ Log Offer</button>`;
+        const obCell=ob?`<span style="${obPillStyle[ob.status]||''};padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700">${uc(ob.status)}</span>`:(o&&o.status==='accepted'?`<button class="btn btn-s btn-o" onclick="event.stopPropagation();openAddOnboardFor('${(s.candidate||'').replace(/'/g,"\\'")}','${(s.client||'').replace(/'/g,"\\'")}','${s.rId}','${o.joiningDate||''}')">+ Log Onboarding</button>`:'<span style="color:var(--muted);font-size:11px">—</span>');
+        return `<tr style="cursor:pointer" onclick="viewSubDetails('${s.id}')">
         <td style="font-weight:600;color:var(--p)">${s.candidate}</td>
         <td>${s.client}</td>
         <td style="font-size:12px">${s.position}</td>
         <td>${s.placedStage?`<span class="pill p-${s.placedStage.toLowerCase()}">${s.placedStage}</span>`:'—'}</td>
         <td>${s.placedDate||s.date}</td>
         <td style="font-size:12px">${s.expCTC||s.currentCTC||'—'}</td>
+        <td>${offerCell}</td>
+        <td>${obCell}</td>
         <td><button class="btn btn-s btn-p" onclick="event.stopPropagation();viewSubDetails('${s.id}')">👁</button></td>
-      </tr>`).join('')}</tbody>
+      </tr>`;}).join('')}</tbody>
     </table></div>`:'<div class="empty"><div class="ei">🏆</div>No placements yet. Keep sourcing — your first one is coming!</div>'}
   </div>`;
 }
+
 
 function vAdminOv(){
   const recs=gRecs(),subs=gSubs(),ivws=gIvws(),p=S.fp;
@@ -1887,10 +1949,12 @@ function vAdminTeam(){
 
 function vAdminClients(){
   const subs=gSubs(),ivws=gIvws();
-  // Merge stored clients with clients found in submissions
+  // Merge stored clients (name+location) with clients found in submissions (name only)
   const stored=gClients();
-  const fromSubs=[...new Set(subs.map(s=>s.client).filter(Boolean))];
-  const clients=[...new Set([...stored,...fromSubs])].sort();
+  const storedNames=stored.map(clientName);
+  const fromSubs=[...new Set(subs.map(s=>s.client).filter(Boolean))].filter(n=>!storedNames.includes(n));
+  const clientObjs=[...stored,...fromSubs.map(n=>({name:n,location:''}))].sort((a,b)=>clientName(a).localeCompare(clientName(b)));
+  const clients=clientObjs.map(clientName);
   return `
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
     <div class="filt" style="margin-bottom:0"><label>Period:</label>
@@ -1903,11 +1967,13 @@ function vAdminClients(){
   </div>
   <div class="card" style="margin-bottom:14px"><div class="ct"><span>🏢 Client Directory (${clients.length})</span></div>
     <div style="display:flex;flex-wrap:wrap;gap:8px;padding:4px 0">
-      ${clients.map(c=>`
+      ${clientObjs.map(c=>{const nm=clientName(c),loc=clientLoc(c);return `
         <div style="display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px">
-          <span style="font-weight:600">${c}</span>
-          <button onclick="delClient('${c}')" style="background:none;border:none;color:var(--err);cursor:pointer;font-size:14px;line-height:1;padding:0 2px" title="Remove client">✕</button>
-        </div>`).join('')}
+          <span style="font-weight:600">${nm}</span>
+          ${loc?`<span style="color:var(--muted);font-size:11px">📍 ${loc}</span>`:'<span style="color:var(--muted);font-size:11px;font-style:italic">no location set</span>'}
+          <button onclick="openEditClientLoc('${nm.replace(/'/g,"\\'")}')" style="background:none;border:none;color:var(--p);cursor:pointer;font-size:12px;line-height:1;padding:0 2px" title="Edit location">✏️</button>
+          <button onclick="delClient('${nm.replace(/'/g,"\\'")}')" style="background:none;border:none;color:var(--err);cursor:pointer;font-size:14px;line-height:1;padding:0 2px" title="Remove client">✕</button>
+        </div>`;}).join('')}
       ${clients.length===0?'<span style="color:var(--muted);font-size:13px">No clients added yet. Click + Add Client to get started.</span>':''}
     </div>
   </div>
@@ -1955,19 +2021,40 @@ function openAddClient(){
       <label>Client / Company Name</label>
       <input id="newClient" placeholder="e.g. Tata Consultancy Services" style="font-size:15px">
     </div>
+    <div class="fg" style="margin-bottom:12px">
+      <label>Location <span style="font-size:11px;color:var(--muted)">(city / office location, optional)</span></label>
+      <input id="newClientLoc" placeholder="e.g. Bangalore" style="font-size:15px">
+    </div>
     <button class="btn btn-p" onclick="saveClient()">Add Client</button>`);
+}
+function openEditClientLoc(name){
+  const clients=gClients();
+  const c=clients.find(x=>clientName(x)===name);
+  openModal('Edit Client — '+name,`
+    <div class="fg" style="margin-bottom:12px">
+      <label>Location <span style="font-size:11px;color:var(--muted)">(city / office location)</span></label>
+      <input id="editClientLoc" value="${clientLoc(c)}" placeholder="e.g. Bangalore" style="font-size:15px">
+    </div>
+    <button class="btn btn-p" onclick="saveClientLoc('${name.replace(/'/g,"\\'")}')">Save</button>`);
+}
+function saveClientLoc(name){
+  const loc=(document.getElementById('editClientLoc').value||'').trim();
+  const clients=gClients().map(c=>clientName(c)===name?{name,location:loc}:c);
+  DB.s('clients',clients);closeModal();go('admin-clients');
 }
 function saveClient(){
   const name=(document.getElementById('newClient').value||'').trim();
+  const loc=(document.getElementById('newClientLoc')?.value||'').trim();
   if(!name) return alert('Please enter a client name.');
   const clients=gClients();
-  if(clients.includes(name)) return alert('Client already exists.');
-  clients.push(name);clients.sort();
+  if(clients.some(c=>clientName(c).toLowerCase()===name.toLowerCase())) return alert('Client already exists.');
+  clients.push({name,location:loc});
+  clients.sort((a,b)=>clientName(a).localeCompare(clientName(b)));
   DB.s('clients',clients);closeModal();go('admin-clients');
 }
 function delClient(name){
   if(!confirm('Remove "'+name+'" from client directory?\n\nNote: existing submissions linked to this client are NOT deleted.')) return;
-  DB.s('clients',gClients().filter(c=>c!==name));go('admin-clients');
+  DB.s('clients',gClients().filter(c=>clientName(c)!==name));go('admin-clients');
 }
 
 function vAdminManage(){
@@ -1991,6 +2078,22 @@ function vAdminManage(){
       <button class="btn btn-d" onclick="resetData()">Reset to Sample Data</button>
     </div></div>
   ${vManageManagers()}`;
+}
+function vManageManagers(){
+  const mgrs=gMgrs();
+  return `
+  <div class="card"><div class="ct"><span>Managers (${mgrs.length})</span>
+    <button class="btn btn-p btn-s" onclick="openAddMgr()">+ Add</button></div>
+    ${mgrs.length===0?'<p style="color:var(--muted);font-size:13px">No managers added yet.</p>':''}
+    ${mgrs.map(m=>`<div class="ri">
+      <div><div class="rn">${m.name}</div>
+      <div class="rm">${m.email||'No email set'}</div></div>
+      <div style="display:flex;gap:7px">
+        <button class="btn btn-s btn-o" onclick="editMgr('${m.id}')">Edit</button>
+        <button class="btn btn-s btn-w" onclick="adminResetMgrPin('${m.id}')">Reset PIN</button>
+        <button class="btn btn-s btn-d" onclick="delMgr('${m.id}')">Remove</button>
+      </div></div>`).join('')}
+  </div>`;
 }
 
 
@@ -2657,6 +2760,11 @@ function vJDLib(){
   else if(fSort==='client') filtered.sort((a,b)=>(a.client||'').localeCompare(b.client||''));
   else if(fSort==='role') filtered.sort((a,b)=>(a.role||'').localeCompare(b.role||''));
   else filtered.sort((a,b)=>b.id.localeCompare(a.id));
+  // ── Group into client folders ──
+  const folderState=S.jdFolderState||(S.jdFolderState={});
+  const clientGroups={};
+  filtered.forEach(j=>{const c=j.client||'(No Client)';(clientGroups[c]=clientGroups[c]||[]).push(j);});
+  const clientNames=Object.keys(clientGroups).sort((a,b)=>a.localeCompare(b));
   return `
   <div class="card"><div class="ct"><span>📁 JD Library (${jds.length})</span>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -2668,11 +2776,29 @@ function vJDLib(){
         <option value="role" ${fSort==='role'?'selected':''}>By Role A-Z</option>
       </select>
       ${q?`<span style="font-size:12px;color:var(--muted)">${filtered.length} of ${jds.length}</span>`:''}
+      <button class="btn btn-s btn-o" onclick="toggleAllJDFolders(true);go('admin-jdlib')" title="Expand all client folders">⬇ Expand All</button>
+      <button class="btn btn-s btn-o" onclick="toggleAllJDFolders(false);go('admin-jdlib')" title="Collapse all client folders">⬆ Collapse All</button>
       <button class="btn btn-p btn-s" onclick="openAddJD()">+ Add JD</button>
     </div>
   </div>
   ${!filtered.length?`<div class="empty">${jds.length?'No JDs match your search.':'No JDs yet. Click + Add JD to get started.'}</div>`:
-  filtered.map(j=>{
+  clientNames.map(cname=>{
+    const groupJds=clientGroups[cname];
+    const isOpen=(q&&tokens.length)?true:(folderState[cname]!==false);
+    return `
+  <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden">
+    <div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#f8fafc,#eef2ff);cursor:pointer;gap:8px" onclick="toggleJDFolder('${cname.replace(/'/g,"\\'")}')">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+        <span style="font-size:16px">${isOpen?'📂':'📁'}</span>
+        <span style="font-weight:800;font-size:14px;color:#1e293b">${cname}</span>
+        <span style="background:#e0e7ff;color:#3730a3;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700">${groupJds.length} JD${groupJds.length!==1?'s':''}</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+        <button class="btn btn-s btn-o" onclick="event.stopPropagation();dlJDClient('${cname.replace(/'/g,"\\'")}')" title="Download all JDs for ${cname}">📦 Download All</button>
+        <span style="font-size:14px;color:var(--muted)">${isOpen?'▾':'▸'}</span>
+      </div>
+    </div>
+    ${isOpen?`<div style="padding:12px;background:#fafbff">${groupJds.map(j=>{
     const bool=genNaukriBoolean(j);
     const broad=genBroaderBoolean(j);
     const senior=genSeniorBoolean(j);
@@ -2762,6 +2888,7 @@ function vJDLib(){
       </details>
       <div style="font-size:10px;color:var(--muted);margin-top:8px">📅 Uploaded: ${j.addedAt||j.date||'—'}${(j.editedAt||j.lastEdited)?' · ✏️ Last edited: '+(j.editedAt||j.lastEdited):''}</div>
     </div>
+  </div>`;}).join('')}</div>`:''}
   </div>`;}).join('')}
   </div>`;
 }
@@ -2773,6 +2900,7 @@ function openEditJD(jdId){
   const recs=gRecs();
   const esc=s=>(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const isAll=!j.assignedTo||j.assignedTo.includes('all');
+  const isAllMgrs=j.assignedMgrs&&j.assignedMgrs.includes('all');
   openModal('✏️ Edit Job Description',`
     <div class="fg2" style="gap:10px;margin-bottom:12px">
       <div class="fg"><label>Client</label><input id="jdCl" value="${esc(j.client)}" placeholder="Client company"></div>
@@ -2832,6 +2960,18 @@ function openEditJD(jdId){
           </label>`).join('')}
         </div>
       </div>
+      <div class="fg" style="grid-column:1/-1">
+        <label>Assign to Managers <span style="font-size:11px;color:var(--muted)">(optional — lets managers view this JD in their JD Library)</span></label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
+          <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="jdAllMgrs" onchange="toggleAllMgrs(this.checked)" ${isAllMgrs?'checked':''}> All Managers
+          </label>
+          ${gMgrs().map(m=>`<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+            <input type="checkbox" class="jdMgr" value="${m.id}" ${isAllMgrs||j.assignedMgrs&&j.assignedMgrs.includes(m.id)?'checked':''}> ${m.name}
+          </label>`).join('')}
+          ${gMgrs().length===0?'<span style="color:var(--muted);font-size:12px">No managers added yet.</span>':''}
+        </div>
+      </div>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-p" onclick="saveEditJD('${jdId}')">✅ Update JD</button>
@@ -2844,6 +2984,8 @@ function saveEditJD(jdId){
   if(idx<0){alert('JD not found.');return;}
   const checked=[...document.querySelectorAll('.jdRec:checked')].map(cb=>cb.value);
   const assignedTo=document.getElementById('jdAll')?.checked?['all']:checked;
+  const checkedMgrs=[...document.querySelectorAll('.jdMgr:checked')].map(cb=>cb.value);
+  const assignedMgrs=document.getElementById('jdAllMgrs')?.checked?['all']:checkedMgrs;
   const g=id=>document.getElementById(id)?.value||'';
   jds[idx]={...jds[idx],
     client:g('jdCl'),role:g('jdRo'),exp:g('jdEx'),salary:g('jdSal'),
@@ -2851,7 +2993,7 @@ function saveEditJD(jdId){
     titleTags:g('jdTitleTags'),targetCompanies:g('jdTargetCo'),competitors:g('jdComp'),
     notice:g('jdNotice'),location:g('jdLoc'),workMode:g('jdMode'),priority:g('jdPriority'),
     screeningQs:g('jdScreenQ'),knockoutQs:g('jdKnockoutQ'),jdText:g('jdTx'),
-    assignedTo,lastEdited:fmt(today),editedAt:new Date().toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true})
+    assignedTo,assignedMgrs,lastEdited:fmt(today),editedAt:new Date().toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true})
   };
   DB.s('jds',jds);
   closeModal();
@@ -2918,11 +3060,26 @@ function openAddJD(){
           </label>`).join('')}
         </div>
       </div>
+      <div class="fg" style="grid-column:1/-1">
+        <label>Assign to Managers <span style="font-size:11px;color:var(--muted)">(optional — lets managers view this JD in their JD Library)</span></label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">
+          <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="jdAllMgrs" onchange="toggleAllMgrs(this.checked)"> All Managers
+          </label>
+          ${gMgrs().map(m=>`<label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+            <input type="checkbox" class="jdMgr" value="${m.id}"> ${m.name}
+          </label>`).join('')}
+          ${gMgrs().length===0?'<span style="color:var(--muted);font-size:12px">No managers added yet.</span>':''}
+        </div>
+      </div>
     </div>
     <button class="btn btn-p" onclick="saveJD()">Save JD</button>`);
 }
 function toggleAllRecs(checked){
   document.querySelectorAll('.jdRec').forEach(cb=>cb.checked=checked);
+}
+function toggleAllMgrs(checked){
+  document.querySelectorAll('.jdMgr').forEach(cb=>cb.checked=checked);
 }
 async function parseJDFile(){
   const fileEl=document.getElementById('jdFile');
@@ -3621,12 +3778,14 @@ function saveJD(){
   const jds=gJDs();
   const checked=[...document.querySelectorAll('.jdRec:checked')].map(cb=>cb.value);
   const assignedTo=document.getElementById('jdAll')?.checked?['all']:checked;
+  const checkedMgrs=[...document.querySelectorAll('.jdMgr:checked')].map(cb=>cb.value);
+  const assignedMgrs=document.getElementById('jdAllMgrs')?.checked?['all']:checkedMgrs;
   const g=id=>document.getElementById(id)?.value||'';
   const newJD={id:'jd'+Date.now(),client:g('jdCl'),role:g('jdRo'),exp:g('jdEx'),salary:g('jdSal'),
     skills:g('jdSk'),keywords:g('jdKw'),mandatory:g('jdMandatory'),goodToHave:g('jdGoodTo'),
     titleTags:g('jdTitleTags'),targetCompanies:g('jdTargetCo'),competitors:g('jdComp'),
     notice:g('jdNotice'),location:g('jdLoc'),workMode:g('jdMode'),priority:g('jdPriority'),
-    screeningQs:g('jdScreenQ'),knockoutQs:g('jdKnockoutQ'),jdText:g('jdTx'),assignedTo,date:fmt(today),addedAt:new Date().toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true})};
+    screeningQs:g('jdScreenQ'),knockoutQs:g('jdKnockoutQ'),jdText:g('jdTx'),assignedTo,assignedMgrs,date:fmt(today),addedAt:new Date().toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true})};
   jds.unshift(newJD);
   DB.s('jds',jds);
   closeModal();
@@ -3716,6 +3875,10 @@ function toggleJDPanel(id){
 }
 function toggleRecJDPanel(id){
   var el=document.getElementById('rjdp_'+id);
+  if(el) el.style.display=el.style.display==='none'?'block':'none';
+}
+function toggleMgrJDPanel(id){
+  var el=document.getElementById('mjdp_'+id);
   if(el) el.style.display=el.style.display==='none'?'block':'none';
 }
 function genLinkedInBoolean(jd){
@@ -4009,6 +4172,54 @@ function delRec(id){
   if(!confirm('Remove this recruiter? Their submissions and interviews remain in the database.')) return;
   DB.s('recruiters',gRecs().filter(r=>r.id!==id));
   populateRecSel(); go('admin-manage');
+}
+function openAddMgr(){
+  openModal('Add Manager',`
+    <div class="fg" style="margin-bottom:10px"><label>Full Name</label><input id="nmN" placeholder="e.g. Rahul Nair"></div>
+    <div class="fg" style="margin-bottom:10px"><label>Email Address <span style="font-size:11px;color:var(--muted)">(optional)</span></label><input id="nmE" type="email" placeholder="manager@hdlconsultants.com"></div>
+    <div class="fg" style="margin-bottom:13px"><label>Initial PIN (default: mgr@123)</label><input id="nmP" placeholder="mgr@123"></div>
+    <button class="btn btn-p" onclick="saveNewMgr()">Add Manager</button>`);
+}
+function saveNewMgr(){
+  const name=document.getElementById('nmN').value.trim();
+  if(!name){alert('Name required');return;}
+  const mgrs=gMgrs();
+  mgrs.push({id:'m'+Date.now(),name,email:document.getElementById('nmE').value.trim(),
+    pin:document.getElementById('nmP').value||'mgr@123'});
+  DB.s('managers',mgrs); populateMgrSel(); closeModal(); go('admin-manage');
+}
+function editMgr(id){
+  const m=gMgrs().find(x=>x.id===id); if(!m) return;
+  openModal('Edit Manager',`
+    <div class="fg" style="margin-bottom:10px"><label>Name</label><input id="emN" value="${m.name}"></div>
+    <div class="fg" style="margin-bottom:13px"><label>Email</label><input id="emE" type="email" value="${m.email||''}" placeholder="manager@hdlconsultants.com"></div>
+    <button class="btn btn-p" onclick="saveEditMgr('${id}')">Save</button>`);
+}
+function saveEditMgr(id){
+  const mgrs=gMgrs(),i=mgrs.findIndex(m=>m.id===id); if(i<0) return;
+  mgrs[i].name=document.getElementById('emN').value.trim();
+  mgrs[i].email=document.getElementById('emE').value.trim();
+  DB.s('managers',mgrs); populateMgrSel(); closeModal(); go('admin-manage');
+}
+function adminResetMgrPin(id){
+  const m=gMgrs().find(x=>x.id===id); if(!m) return;
+  openModal('Reset PIN for '+m.name,`
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Set a new PIN for <b>${m.name}</b>. Share it with them securely.</p>
+    <div class="fg" style="margin-bottom:13px"><label>New PIN (min 4 chars)</label><input id="mpN" placeholder="Enter new PIN"></div>
+    <button class="btn btn-p" onclick="saveResetMgrPin('${id}')">Set PIN</button>`);
+}
+function saveResetMgrPin(id){
+  const pin=document.getElementById('mpN').value.trim();
+  if(pin.length<4){alert('PIN must be at least 4 characters');return;}
+  const mgrs=gMgrs(),i=mgrs.findIndex(m=>m.id===id); if(i<0) return;
+  mgrs[i].pin=pin; DB.s('managers',mgrs); closeModal();
+  alert('PIN updated for '+mgrs[i].name+'. New PIN: '+pin);
+  go('admin-manage');
+}
+function delMgr(id){
+  if(!confirm('Remove this manager? JDs already assigned to them remain unaffected.')) return;
+  DB.s('managers',gMgrs().filter(m=>m.id!==id));
+  populateMgrSel(); go('admin-manage');
 }
 function resetData(){
   if(!confirm('Reset all data to sample data? This cannot be undone.')) return;
@@ -5086,6 +5297,10 @@ function vRecJDLib(){
   if(fSort==='priority') filtered.sort((a,b)=>{const o={High:0,Medium:1,Low:2};return(o[a.priority]??3)-(o[b.priority]??3);});
   else if(fSort==='role') filtered.sort((a,b)=>(a.role||'').localeCompare(b.role||''));
   else filtered.sort((a,b)=>b.id.localeCompare(a.id));
+  const folderState=S.recJdFolderState||(S.recJdFolderState={});
+  const clientGroups={};
+  filtered.forEach(j=>{const c=j.client||'(No Client)';(clientGroups[c]=clientGroups[c]||[]).push(j);});
+  const clientNames=Object.keys(clientGroups).sort((a,b)=>a.localeCompare(b));
   return `
   <div class="card"><div class="ct"><span>📁 My JD Library (${myJDs.length} assigned)</span>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -5096,11 +5311,29 @@ function vRecJDLib(){
         <option value="role" ${fSort==='role'?'selected':''}>By Role A-Z</option>
       </select>
       ${q?`<span style="font-size:12px;color:var(--muted)">${filtered.length} of ${myJDs.length}</span>`:''}
+      <button class="btn btn-s btn-o" onclick="toggleAllRecJDFolders(true);go('rec-jdlib')" title="Expand all client folders">⬇ Expand All</button>
+      <button class="btn btn-s btn-o" onclick="toggleAllRecJDFolders(false);go('rec-jdlib')" title="Collapse all client folders">⬆ Collapse All</button>
     </div>
   </div>
   ${!myJDs.length?`<div class="empty">No JDs assigned to you yet. Ask your admin to assign job descriptions.</div>`:
   !filtered.length?`<div class="empty">No JDs match your search.</div>`:
-  filtered.map(j=>{
+  clientNames.map(cname=>{
+    const groupJds=clientGroups[cname];
+    const isOpen=(q&&tokens.length)?true:(folderState[cname]!==false);
+    return `
+  <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden">
+    <div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#f8fafc,#eef2ff);cursor:pointer;gap:8px" onclick="toggleRecJDFolder('${cname.replace(/'/g,"\\'")}')">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+        <span style="font-size:16px">${isOpen?'📂':'📁'}</span>
+        <span style="font-weight:800;font-size:14px;color:#1e293b">${cname}</span>
+        <span style="background:#e0e7ff;color:#3730a3;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700">${groupJds.length} JD${groupJds.length!==1?'s':''}</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+        <button class="btn btn-s btn-o" onclick="event.stopPropagation();dlJDClient('${cname.replace(/'/g,"\\'")}')" title="Download all JDs for ${cname}">📦 Download All</button>
+        <span style="font-size:14px;color:var(--muted)">${isOpen?'▾':'▸'}</span>
+      </div>
+    </div>
+    ${isOpen?`<div style="padding:12px;background:#fafbff">${groupJds.map(j=>{
     const bool=genNaukriBoolean(j);
     const broad=genBroaderBoolean(j);
     const senior=genSeniorBoolean(j);
@@ -5188,8 +5421,191 @@ function vRecJDLib(){
       </details>
       <div style="font-size:10px;color:var(--muted);margin-top:8px">📅 Uploaded: ${j.addedAt||j.date||'—'}${(j.editedAt||j.lastEdited)?' · ✏️ Updated: '+(j.editedAt||j.lastEdited):''}</div>
     </div>
+  </div>`;}).join('')}</div>`:''}
   </div>`;}).join('')}
   </div>`;
+}
+
+
+function vMgrJDLib(){
+  const allJDs=gJDs();
+  const myJDs=allJDs.filter(j=>j.assignedMgrs&&(j.assignedMgrs.includes('all')||j.assignedMgrs.includes(S.mgrId)));
+  const priStyle={High:'background:#fee2e2;color:#991b1b',Medium:'background:#fef9c3;color:#854d0e',Low:'background:#dcfce7;color:#166534'};
+  const q=(S.mgrJdQ||'').toLowerCase().trim();
+  const fSort=S.mgrJdSort||'newest';
+  const tokens=q?q.split(/\s+/).filter(Boolean):[];
+  function jdMatch(j){
+    if(!tokens.length) return true;
+    const hay=[j.client,j.role,j.skills,j.keywords,j.mandatory,j.goodToHave,j.titleTags,j.targetCompanies,j.screeningQs,j.knockoutQs,j.jdText,j.location,j.workMode].filter(Boolean).join(' ').toLowerCase();
+    return tokens.every(t=>hay.includes(t));
+  }
+  let filtered=myJDs.filter(jdMatch);
+  if(fSort==='priority') filtered.sort((a,b)=>{const o={High:0,Medium:1,Low:2};return(o[a.priority]??3)-(o[b.priority]??3);});
+  else if(fSort==='role') filtered.sort((a,b)=>(a.role||'').localeCompare(b.role||''));
+  else filtered.sort((a,b)=>b.id.localeCompare(a.id));
+  const folderState=S.mgrJdFolderState||(S.mgrJdFolderState={});
+  const clientGroups={};
+  filtered.forEach(j=>{const c=j.client||'(No Client)';(clientGroups[c]=clientGroups[c]||[]).push(j);});
+  const clientNames=Object.keys(clientGroups).sort((a,b)=>a.localeCompare(b));
+  return `
+  <div class="card"><div class="ct"><span>📁 JD Library (${myJDs.length} assigned to you)</span>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input placeholder="Search role, skills, title tags…" value="${S.mgrJdQ||''}" oninput="S.mgrJdQ=this.value;go('mgr-jdlib')" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;width:240px">
+      <select onchange="S.mgrJdSort=this.value;go('mgr-jdlib')" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+        <option value="newest" ${fSort==='newest'?'selected':''}>Newest First</option>
+        <option value="priority" ${fSort==='priority'?'selected':''}>By Priority</option>
+        <option value="role" ${fSort==='role'?'selected':''}>By Role A-Z</option>
+      </select>
+      ${q?`<span style="font-size:12px;color:var(--muted)">${filtered.length} of ${myJDs.length}</span>`:''}
+      <button class="btn btn-s btn-o" onclick="toggleAllMgrJDFolders(true);go('mgr-jdlib')" title="Expand all client folders">⬇ Expand All</button>
+      <button class="btn btn-s btn-o" onclick="toggleAllMgrJDFolders(false);go('mgr-jdlib')" title="Collapse all client folders">⬆ Collapse All</button>
+    </div>
+  </div>
+  ${!myJDs.length?`<div class="empty">No JDs assigned to you yet. Ask admin to assign job descriptions to you as a Manager.</div>`:
+  !filtered.length?`<div class="empty">No JDs match your search.</div>`:
+  clientNames.map(cname=>{
+    const groupJds=clientGroups[cname];
+    const isOpen=(q&&tokens.length)?true:(folderState[cname]!==false);
+    return `
+  <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden">
+    <div style="padding:12px 16px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#f8fafc,#eef2ff);cursor:pointer;gap:8px" onclick="toggleMgrJDFolder('${cname.replace(/'/g,"\\'")}')">
+      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+        <span style="font-size:16px">${isOpen?'📂':'📁'}</span>
+        <span style="font-weight:800;font-size:14px;color:#1e293b">${cname}</span>
+        <span style="background:#e0e7ff;color:#3730a3;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700">${groupJds.length} JD${groupJds.length!==1?'s':''}</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+        <button class="btn btn-s btn-o" onclick="event.stopPropagation();dlJDClient('${cname.replace(/'/g,"\\'")}')" title="Download all JDs for ${cname}">📦 Download All</button>
+        <span style="font-size:14px;color:var(--muted)">${isOpen?'▾':'▸'}</span>
+      </div>
+    </div>
+    ${isOpen?`<div style="padding:12px;background:#fafbff">${groupJds.map(j=>{
+    const bool=genNaukriBoolean(j);
+    const broad=genBroaderBoolean(j);
+    const senior=genSeniorBoolean(j);
+    const li=genLinkedInBoolean(j);
+    const tips=genSourcingTips(j);
+    window._jdBoolCache=window._jdBoolCache||{};
+    window._jdBoolCache[j.id]={naukri:bool,broad:broad,senior:senior,li:li};
+    return `
+  <div style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden">
+    <div style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;background:var(--bg);cursor:pointer;gap:8px" onclick="toggleMgrJDPanel('${j.id}')">
+      <div style="flex:1;min-width:0">
+        <span style="font-weight:700">${j.role}</span> <span style="color:var(--muted)">@ ${j.client}</span>
+        <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">
+          ${j.exp?`<span style="font-size:11px;background:#ede9fe;color:#5b21b6;padding:1px 7px;border-radius:10px">${j.exp} yrs</span>`:''}
+          ${j.salary?`<span style="font-size:11px;background:#d1fae5;color:#065f46;padding:1px 7px;border-radius:10px">${j.salary} LPA</span>`:''}
+          ${j.priority?`<span style="font-size:11px;padding:1px 7px;border-radius:10px;${priStyle[j.priority]||''}">${j.priority} Priority</span>`:''}
+          ${j.workMode?`<span style="font-size:11px;background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:10px">${j.workMode}</span>`:''}
+          ${j.notice?`<span style="font-size:11px;background:#f0fdf4;color:#166534;padding:1px 7px;border-radius:10px">Notice: ${j.notice}</span>`:''}
+          ${j.location?`<span style="font-size:11px;background:#fef9c3;color:#854d0e;padding:1px 7px;border-radius:10px">📍${j.location}</span>`:''}
+          <span style="font-size:11px;background:#f1f5f9;color:#475569;padding:1px 7px;border-radius:10px">📅 ${(j.addedAt||j.date||'').split(',')[0]}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-s btn-o" onclick="event.stopPropagation();copyJDText('${j.id}')">📋 Copy</button>
+        <button class="btn btn-s btn-o" onclick="event.stopPropagation();dlJD('${j.id}')">⬇ Download</button>
+      </div>
+    </div>
+    <div id="mjdp_${j.id}" style="display:none;padding:14px;border-top:1px solid var(--border);background:white">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px"><div style="margin-bottom:10px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🔴 Mandatory Skills</div>
+        <div>${j.mandatory?j.mandatory.split(',').map(s=>`<span style='display:inline-block;background:#ede9fe;color:#4c1d95;padding:2px 9px;border-radius:12px;font-size:12px;margin:2px;font-weight:600'>${s.trim()}</span>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}</div>
+      </div>
+      <div style="margin-bottom:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:#0284c7;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🟡 Good-to-Have Skills</div>
+        <div>${j.goodToHave?j.goodToHave.split(',').map(s=>`<span style='display:inline-block;background:#e0f2fe;color:#0369a1;padding:2px 9px;border-radius:12px;font-size:12px;margin:2px'>${s.trim()}</span>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}</div>
+      </div>
+      <div style="margin-bottom:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🛠 Key Skills</div>
+        <div>${j.skills?j.skills.split(',').map(s=>`<span style='display:inline-block;background:#d1fae5;color:#065f46;padding:2px 9px;border-radius:12px;font-size:12px;margin:2px'>${s.trim()}</span>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}</div>
+      </div>
+      <div style="margin-bottom:10px;background:#fdf2f8;border:1px solid #fbcfe8;border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:#db2777;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🏷 Naukri Title Tags <span style="font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;font-size:10px">— click a tag to copy it</span></div>
+        <div>${j.titleTags?j.titleTags.split(',').map(s=>`<span onclick="event.stopPropagation();(function(el,txt){copyTxt(txt,()=>{const o=el.textContent;el.textContent='✓ Copied';setTimeout(()=>{el.textContent=o;},1200);});})(this,'${s.trim().replace(/'/g,"\\'")}')" title="Click to copy this tag" style='display:inline-block;background:#fce7f3;color:#831843;padding:3px 10px;border-radius:12px;font-size:12px;margin:2px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:background .15s,border-color .15s' onmouseover="this.style.background='#f9a8d4';this.style.borderColor='#db2777'" onmouseout="this.style.background='#fce7f3';this.style.borderColor='transparent'">${s.trim()} 📋</span>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}</div>
+        ${j.titleTags?`<button onclick="event.stopPropagation();copyTxt('${j.titleTags.replace(/'/g,"\\'")}',()=>alert('All Naukri title tags copied!'))" style="margin-top:4px;background:#db2777;color:white;border:none;padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer">📋 Copy All Tags</button>`:''}
+      </div>
+      </div><div style="margin-bottom:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🏢 Ideal Target Companies</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.9;background:white;border:1px solid #fde68a;border-radius:6px;padding:8px">${j.targetCompanies||'<span style="color:var(--muted)">— Not set —</span>'}</div>
+      </div>
+      <div style="margin-bottom:10px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:#4f46e5;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">🔍 Naukri Boolean Strings</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.naukri||'';copyTxt(t,()=>alert('Boolean 1 copied!'));})();event.stopPropagation()" style="background:#4f46e5;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 1 — Standard</button>
+          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.broad||'';copyTxt(t,()=>alert('Boolean 2 copied!'));})();event.stopPropagation()" style="background:#0891b2;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 2 — Broader</button>
+          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.senior||'';copyTxt(t,()=>alert('Boolean 3 copied!'));})();event.stopPropagation()" style="background:#7c3aed;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Boolean 3 — Senior</button>
+          <button onclick="(()=>{const t=window._jdBoolCache?.['${j.id}']?.li||'';copyTxt(t,()=>alert('LinkedIn Boolean copied!'));})();event.stopPropagation()" style="background:#0a66c2;color:white;border:none;padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer">🔗 LinkedIn Boolean</button>
+        </div>
+        <div style="margin-bottom:8px"><div style="font-size:10px;font-weight:700;color:#4f46e5;margin-bottom:3px">📌 NAUKRI BOOLEAN 1 — STANDARD (copy-paste into Naukri keyword search)</div><code style="display:block;background:#f5f3ff;padding:8px;border-radius:6px;font-size:11px;word-break:break-all;white-space:pre-wrap;border:1px solid #ddd6fe">${bool}</code></div>
+        <details><summary style="font-size:11px;color:var(--muted);cursor:pointer;user-select:none">▶ Show Boolean 2 (Broader) / Boolean 3 (Senior) / LinkedIn</summary>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+            <div><div style="font-size:10px;font-weight:700;color:#0891b2;margin-bottom:3px">BOOLEAN 2 — BROADER</div><code style="display:block;background:#ecfeff;padding:8px;border-radius:6px;font-size:11px;word-break:break-all;white-space:pre-wrap;border:1px solid #a5f3fc">${broad}</code></div>
+            <div><div style="font-size:10px;font-weight:700;color:#7c3aed;margin-bottom:3px">BOOLEAN 3 — SENIOR</div><code style="display:block;background:#f5f3ff;padding:8px;border-radius:6px;font-size:11px;word-break:break-all;white-space:pre-wrap;border:1px solid #ddd6fe">${senior}</code></div>
+            <div><div style="font-size:10px;font-weight:700;color:#0a66c2;margin-bottom:3px">LINKEDIN BOOLEAN</div><code style="display:block;background:#eff6ff;padding:8px;border-radius:6px;font-size:11px;word-break:break-all;white-space:pre-wrap;border:1px solid #bfdbfe">${li}</code></div>
+          </div>
+        </details>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px"><div style="margin-bottom:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📋 Screening Questions</div>
+        <div style="background:white;border:1px solid #bae6fd;border-radius:8px;padding:10px">
+          ${j.screeningQs?j.screeningQs.split('\n').filter(Boolean).map(q=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px dashed #bae6fd;color:var(--text)">${q}</div>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}
+        </div>
+        ${j.screeningQs?`<button onclick="(()=>{copyTxt(${JSON.stringify(j.screeningQs||'')},()=>alert('Copied!'));})();event.stopPropagation()" style="margin-top:6px;background:#0369a1;color:white;border:none;padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Copy Screening Questions</button>`:''}
+      </div>
+      <div style="margin-bottom:10px;background:#fff1f2;border:1px solid #fecdd3;border-radius:10px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:#b91c1c;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">🚫 Knockout Questions</div>
+        <div style="background:white;border:1px solid #fecdd3;border-radius:8px;padding:10px">
+          ${j.knockoutQs?j.knockoutQs.split('\n').filter(Boolean).map(q=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px dashed #fecdd3;color:var(--text)">${q}</div>`).join(''):'<span style="color:var(--muted);font-size:12px">— Not set —</span>'}
+        </div>
+        ${j.knockoutQs?`<button onclick="(()=>{copyTxt(${JSON.stringify(j.knockoutQs||'')},()=>alert('Copied!'));})();event.stopPropagation()" style="margin-top:6px;background:#b91c1c;color:white;border:none;padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer">📋 Copy Knockout Questions</button>`:''}
+      </div>
+      </div>
+      ${tips.length?`<div style="margin-bottom:12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px"><div style="font-size:10px;font-weight:700;color:#c2410c;text-transform:uppercase;margin-bottom:5px">💡 Sourcing Tips</div>${tips.map(t=>`<div style="font-size:12px;padding:3px 0;border-bottom:1px solid #fed7aa">${t}</div>`).join('')}</div>`:''}
+      <details><summary style="font-size:12px;color:var(--muted);cursor:pointer;user-select:none">📄 Full JD Text</summary>
+        <pre id="mjd_${j.id}" style="white-space:pre-wrap;font-family:inherit;font-size:13px;line-height:1.6;color:var(--text);background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--border);margin-top:8px">${j.jdText||'No JD text added.'}</pre>
+      </details>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px">📅 Uploaded: ${j.addedAt||j.date||'—'}${(j.editedAt||j.lastEdited)?' · ✏️ Updated: '+(j.editedAt||j.lastEdited):''}</div>
+    </div>
+  </div>`;}).join('')}</div>`:''}
+  </div>`;}).join('')}
+  </div>`;
+}
+
+function toggleJDFolder(cname){
+  const fs=S.jdFolderState||(S.jdFolderState={});
+  fs[cname]=fs[cname]===false?true:false;
+  go('admin-jdlib');
+}
+function toggleAllJDFolders(open){
+  const jds=gJDs();
+  const fs=S.jdFolderState||(S.jdFolderState={});
+  [...new Set(jds.map(j=>j.client||'(No Client)'))].forEach(c=>fs[c]=open);
+}
+function toggleRecJDFolder(cname){
+  const fs=S.recJdFolderState||(S.recJdFolderState={});
+  fs[cname]=fs[cname]===false?true:false;
+  go('rec-jdlib');
+}
+function toggleAllRecJDFolders(open){
+  const jds=gJDs().filter(j=>!j.assignedTo||j.assignedTo.includes('all')||j.assignedTo.includes(S.rId));
+  const fs=S.recJdFolderState||(S.recJdFolderState={});
+  [...new Set(jds.map(j=>j.client||'(No Client)'))].forEach(c=>fs[c]=open);
+}
+function toggleMgrJDFolder(cname){
+  const fs=S.mgrJdFolderState||(S.mgrJdFolderState={});
+  fs[cname]=fs[cname]===false?true:false;
+  go('mgr-jdlib');
+}
+function toggleAllMgrJDFolders(open){
+  const jds=gJDs().filter(j=>!j.assignedMgrs||j.assignedMgrs.includes('all')||j.assignedMgrs.includes(S.mgrId));
+  const fs=S.mgrJdFolderState||(S.mgrJdFolderState={});
+  [...new Set(jds.map(j=>j.client||'(No Client)'))].forEach(c=>fs[c]=open);
+}
+function dlJDClient(cname){
+  const jds=gJDs().filter(j=>(j.client||'(No Client)')===cname);
+  if(!jds.length){alert('No JDs found for '+cname);return;}
+  jds.forEach((j,i)=>setTimeout(()=>dlJD(j.id),i*350));
 }
 
 function dlJD(id){
