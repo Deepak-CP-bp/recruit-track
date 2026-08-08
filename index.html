@@ -9,6 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--p:#4f46e5;--pd:#3730a3;--pl:#818cf8;--ok:#10b981;--warn:#f59e0b;--err:#ef4444;--info:#06b6d4;
@@ -428,7 +429,6 @@ function initData(){
     DB.s('recruiters',SR);DB.s('subs',SS);DB.s('ivws',SI);DB.s('init',true);
     DB.s('admin_pin','admin@123');
   }else{
-    // Always merge any new hardcoded recruiters (so re-deploys propagate new names)
     const recs=DB.g('recruiters',[]);
     let changed=false;
     SR.forEach(sr=>{if(!recs.find(r=>r.id===sr.id)){recs.push(sr);changed=true;}});
@@ -671,6 +671,7 @@ function buildSidebar(){
       <div class="ni" data-v="admin-ttp" onclick="go('admin-ttp')">⏱ Time-to-Placement</div>
       <div class="ni" data-v="admin-revenue" onclick="go('admin-revenue')">💰 Revenue</div>
       <div class="sb-sec">Pipeline</div>
+      <div class="ni" data-v="admin-subs" onclick="go('admin-subs')">📄 Submissions</div>
       <div class="ni" data-v="admin-schedule" onclick="go('admin-schedule')">${IC.cal} Interview Schedule</div>
       <div class="ni" data-v="admin-jrs" onclick="go('admin-jrs')">📋 Job Requisitions</div>
       <div class="ni" data-v="admin-offers" onclick="go('admin-offers')">🤝 Offer Acceptance</div>
@@ -699,7 +700,7 @@ const VT={'dashboard':'My Dashboard','submissions':'My Submissions','interviews'
   'admin-offers':'🤝 Offer Acceptance','admin-onboarding':'🚀 Onboarding Tracker',
   'admin-reengagement':'♻️ Re-engagement Pool','admin-sla':'🔔 SLA Alerts',
   'admin-aging':'📉 Aging Report','admin-templates':'✉️ Email Templates',
-  'admin-jdlib':'📁 JD Library','admin-followup':'🔔 Follow-Up Queue'};
+  'admin-jdlib':'📁 JD Library','admin-followup':'🔔 Follow-Up Queue','admin-subs':'📄 Submissions'};
 
 function toggleSidebar(){
   document.getElementById('sidebar')?.classList.toggle('open');
@@ -735,6 +736,7 @@ function render(){
     case 'rec-jdlib': el.innerHTML=vRecJDLib(); break;
     case 'rec-placements': el.innerHTML=vRecPlacements(); break;
     case 'admin-overview': el.innerHTML=vAdminOv(); initCharts(); break;
+    case 'admin-subs': el.innerHTML=vAdminSubs(); break;
     case 'admin-schedule': el.innerHTML=vAdminSchedule(); break;
     case 'admin-team': el.innerHTML=vAdminTeam(); break;
     case 'admin-clients': el.innerHTML=vAdminClients(); break;
@@ -765,6 +767,7 @@ function wStart(){let d=new Date(today);d.setDate(d.getDate()-d.getDay());return
 function inP(ds,p){
   if(!ds) return false;
   if(p==='today') return ds===fmt(today);
+  if(p==='yesterday') return ds===da(1);
   if(p==='week') return ds>=wStart();
   if(p==='month') return ds>=mStart();
   if(p==='custom'){
@@ -773,6 +776,21 @@ function inP(ds,p){
     return ok1&&ok2;
   }
   return true;
+}
+function periodFilterHTML(view){
+  const p=S.fp;
+  return `<div class="filt" style="align-items:center;flex-wrap:wrap;gap:8px"><label>Period:</label>
+    <select onchange="S.fp=this.value;S.customFrom='';S.customTo='';go('${view}')">
+      <option value="today" ${p==='today'?'selected':''}>Today</option>
+      <option value="yesterday" ${p==='yesterday'?'selected':''}>Yesterday</option>
+      <option value="week" ${p==='week'?'selected':''}>This Week</option>
+      <option value="month" ${p==='month'?'selected':''}>This Month</option>
+      <option value="all" ${p==='all'?'selected':''}>All Time</option>
+      <option value="custom" ${p==='custom'?'selected':''}>Custom Range</option>
+    </select>
+    ${p==='custom'?`<label>From:</label><input type="date" value="${S.customFrom}" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px" onchange="S.customFrom=this.value;go('${view}')">
+    <label>To:</label><input type="date" value="${S.customTo}" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px" onchange="S.customTo=this.value;go('${view}')">`:''}
+  </div>`;
 }
 function fmtDate(ds){
   if(!ds) return '';
@@ -959,7 +977,7 @@ function vSubs(){
           <option value="selected">Selected</option><option value="rejected">Rejected</option><option value="on-hold">On Hold</option>
         </select>
         <select onchange="fltSubsDr(this.value)" style="padding:5px 9px;border:1px solid var(--border);border-radius:5px;font-size:12px">
-          <option value="">All Dates</option><option value="today">Today</option><option value="week">This Week</option>
+          <option value="">All Dates</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="week">This Week</option>
           <option value="month">This Month</option><option value="custom">Custom Range</option>
         </select>
         <button class="btn btn-s btn-o" onclick="expCSV('subs')" title="Download CSV">⬇ CSV</button> <button class="btn btn-s btn-o" onclick="expReport('subs')" title="Download professional report">⬇ Report</button>
@@ -1014,6 +1032,7 @@ function fltSubs(st){
     const wd=new Date(today);wd.setDate(wd.getDate()-7);const weekAgo=fmt(wd);
     const md=new Date(today);md.setDate(1);const monthStart=fmt(md);
     if(_subFlt.dr==='today') s=s.filter(x=>x.date===today2);
+    else if(_subFlt.dr==='yesterday') s=s.filter(x=>x.date===da(1));
     else if(_subFlt.dr==='week') s=s.filter(x=>x.date>=weekAgo&&x.date<=today2);
     else if(_subFlt.dr==='month') s=s.filter(x=>x.date>=monthStart&&x.date<=today2);
     else if(_subFlt.dr==='custom'){
@@ -1380,6 +1399,7 @@ function vIvws(){
         <select onchange="fltIvw('outcome',this.value)" style="padding:5px 9px;border:1px solid var(--border);border-radius:5px;font-size:12px">
           <option value="">All Outcomes</option><option value="scheduled">Scheduled</option><option value="cleared">Cleared</option><option value="rejected">Rejected</option><option value="no-show">No Show</option><option value="rescheduled">Rescheduled</option></select>
         <button class="btn btn-s" style="background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe" onclick="fltIvwDr('today')">Today</button>
+        <button class="btn btn-s" style="background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe" onclick="fltIvwDr('yesterday')">Yesterday</button>
         <button class="btn btn-s" style="background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe" onclick="fltIvwDr('week')">Week</button>
         <button class="btn btn-s" style="background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe" onclick="fltIvwDr('month')">Month</button>
         <button class="btn btn-s" style="background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe" onclick="fltIvwDr('all')">All</button>
@@ -1406,7 +1426,7 @@ function renderIvwsTbl(ivws){
       <td style="color:var(--muted);font-size:10px">${idx+1}</td>
       <td style="font-weight:700;white-space:nowrap">${i.candidate}</td>
       <td><a class="cl cl-phone" href="tel:${i.phone}">📞 ${i.phone||'—'}</a></td>
-      <td><a class="cl cl-email" href="mailto:${i.email}" style="font-size:11px">${i.email||'—'}</a></td>
+      <td><a class="cl cl-email" href="mailto:${i.email}" style="font-size:11px">${i.email||'—'}</a>${emailStatusBadge(i)}</td>
       <td style="font-size:11px;white-space:nowrap">${i.currentCTC?i.currentCTC+'→'+i.expCTC+' L':'—'}</td>
       <td style="font-size:11px">${i.notice||'—'}</td>
       <td>${i.client}</td>
@@ -1421,6 +1441,7 @@ function renderIvwsTbl(ivws){
       <td style="white-space:nowrap">
         <button class="btn btn-s btn-o" onclick="editIvw('${i.id}')">✏</button>${i.outcome==='cleared'?`<button class="btn btn-s btn-g" onclick="manualPlace('${i.id}')" title="Confirm Placement">🏆</button>`:''}
         <button class="btn btn-s btn-d" onclick="delIvw('${i.id}')">✕</button>
+        ${i.email?`<button class="btn btn-s btn-o" onclick="resendCandidateEmail('${i.id}')" title="Email candidate interview details">📧</button>`:''}
         ${i.ivLink?`<a class="btn btn-s btn-o" href="https://${i.ivLink}" target="_blank">🔗</a>`:''}
         <a class="btn btn-s btn-g" href="https://wa.me/91${i.phone}?text=Hi ${encodeURIComponent(i.candidate)}, your ${i.stage} interview with ${i.client} is scheduled on ${i.date} at ${i.time||'TBD'}. Please be ready. Regards, The Talent Company." target="_blank">💬 WA</a>
       </td>
@@ -1455,6 +1476,7 @@ function applyIvwFlt(){
     const wd=new Date(today);wd.setDate(wd.getDate()-7);const wa=fmt(wd);
     const md=new Date(today);md.setDate(1);const ms=fmt(md);
     if(ivwF.dr==='today') i=i.filter(x=>x.date===t2);
+    else if(ivwF.dr==='yesterday') i=i.filter(x=>x.date===da(1));
     else if(ivwF.dr==='week') i=i.filter(x=>x.date>=wa&&x.date<=t2);
     else if(ivwF.dr==='month') i=i.filter(x=>x.date>=ms&&x.date<=t2);
     else if(ivwF.dr==='custom'){
@@ -1502,6 +1524,7 @@ function addIvw(e){
     ivLink:f.ivLink.value.trim(),outcome:f.outcome.value,reason:f.reason.value,notes:f.notes.value.trim()});
   DB.s('ivws',ivws);
   autoLinkPlacement(ivws[0]);
+  sendCandidateInterviewEmail(ivws[0],'scheduled');
   f.reset(); f.date.value=fmt(today);
   showAlt('ia','✓ Interview saved!'+(ivws[0].outcome==='cleared'&&['Final','Offer'].includes(ivws[0].stage)?' Candidate marked as Placed ✓':''),'ok');
   document.getElementById('itbl').innerHTML=renderIvwsTbl(gIvws().filter(i=>i.rId===S.rId).sort((a,b)=>b.date.localeCompare(a.date)));
@@ -1590,6 +1613,7 @@ function autoLinkPlacement(ivw){
 }
 function saveIvw(id){
   const ivws=gIvws(),idx=ivws.findIndex(i=>i.id===id); if(idx<0) return;
+  const prev={date:ivws[idx].date,time:ivws[idx].time,mode:ivws[idx].mode,stage:ivws[idx].stage};
   ivws[idx].stage=document.getElementById('eIS').value;
   ivws[idx].date=document.getElementById('eID').value;
   ivws[idx].time=document.getElementById('eIT').value;
@@ -1601,6 +1625,8 @@ function saveIvw(id){
   ivws[idx].notes=document.getElementById('eIN').value;
   DB.s('ivws',ivws);
   autoLinkPlacement(ivws[idx]);
+  const scheduleChanged=prev.date!==ivws[idx].date||prev.time!==ivws[idx].time||prev.mode!==ivws[idx].mode||prev.stage!==ivws[idx].stage;
+  if(scheduleChanged) sendCandidateInterviewEmail(ivws[idx],'reschedule');
   closeModal();
   if(S.role==='admin') go('admin-schedule'); else go('interviews');
 }
@@ -1737,19 +1763,7 @@ function vAdminOv(){
   if(offers.length) suggestions.push({type:'ok',msg:`💼 <b>${offers.length} candidate${offers.length>1?'s':''}</b> at Offer stage — follow up on acceptance.`});
 
   return `
-  <div class="filt" style="align-items:center;flex-wrap:wrap;gap:8px">
-    <label>Period:</label>
-    <select id="fpSel" onchange="S.fp=this.value;S.customFrom='';S.customTo='';go('admin-overview')">
-      <option value="month" ${p==='month'?'selected':''}>This Month</option>
-      <option value="week" ${p==='week'?'selected':''}>This Week</option>
-      <option value="all" ${p==='all'?'selected':''}>All Time</option>
-      <option value="custom" ${p==='custom'?'selected':''}>Custom Range</option>
-    </select>
-    ${p==='custom'?`
-    <label>From:</label><input type="date" id="cfrom" value="${S.customFrom}" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px" onchange="S.customFrom=this.value;go('admin-overview')">
-    <label>To:</label><input type="date" id="cto" value="${S.customTo}" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px" onchange="S.customTo=this.value;go('admin-overview')">
-    `:''}
-  </div>
+  ${periodFilterHTML('admin-overview')}
   <div class="sg">
     <div class="sc scb"><div class="si">📄</div><div class="sl">Submissions</div><div class="sv">${ms.length}</div><div class="ss">${recs.length} recruiters</div></div>
     <div class="sc scc"><div class="si">📅</div><div class="sl">Interviews</div><div class="sv">${mi.length}</div><div class="ss">${sch} scheduled · ${clr} cleared</div></div>
@@ -1815,6 +1829,8 @@ function vAdminSchedule(){
   const defFrom=da(7), defTo=df(14);
   return `
   <div class="filt">
+    <button type="button" class="btn btn-s btn-o" onclick="setSchedQuick('today')">Today</button>
+    <button type="button" class="btn btn-s btn-o" onclick="setSchedQuick('yesterday')">Yesterday</button>
     <label>From:</label><input type="date" id="sfrom" value="${defFrom}" onchange="renderSched()">
     <label>To:</label><input type="date" id="sto" value="${defTo}" onchange="renderSched()">
     <label>Recruiter:</label>
@@ -1834,6 +1850,12 @@ function vAdminSchedule(){
   </div>
   <div id="schedBody"></div>
   <script>renderSched();<\/script>`;
+}
+function setSchedQuick(kind){
+  const d=kind==='yesterday'?da(1):fmt(today);
+  const fr=document.getElementById('sfrom'), to=document.getElementById('sto');
+  if(fr) fr.value=d; if(to) to.value=d;
+  renderSched();
 }
 
 function renderSched(){
@@ -1881,7 +1903,7 @@ function renderSched(){
             <td style="font-weight:700;white-space:nowrap">${i.time||'—'}</td>
             <td style="font-weight:700;white-space:nowrap">${i.candidate}</td>
             <td><a class="cl cl-phone" href="tel:${i.phone}">📞 ${i.phone||'—'}</a></td>
-            <td><a class="cl cl-email" href="mailto:${i.email}" style="font-size:11px">${i.email||'—'}</a></td>
+            <td><a class="cl cl-email" href="mailto:${i.email}" style="font-size:11px">${i.email||'—'}</a>${emailStatusBadge(i)}</td>
             <td style="font-size:11px;white-space:nowrap">${i.currentCTC?i.currentCTC+'→'+i.expCTC+' L':'—'}</td>
             <td style="font-size:11px">${i.notice||'—'}</td>
             <td>${i.client}</td>
@@ -1894,6 +1916,7 @@ function renderSched(){
             <td><span class="pill p-${i.outcome}">${uc(i.outcome)}</span></td>
             <td style="white-space:nowrap">
               <button class="btn btn-s btn-o" onclick="editIvw('${i.id}')">✏ Update</button>
+              ${i.email?`<button class="btn btn-s btn-o" onclick="resendCandidateEmail('${i.id}')" title="Email candidate interview details">📧</button>`:''}
               <a class="btn btn-s btn-g" href="https://wa.me/91${i.phone}?text=Hi ${encodeURIComponent(i.candidate)}, reminder: your ${i.stage} interview with ${i.client} is on ${i.date} at ${i.time||'TBD'}. Please be ready!" target="_blank">💬 WA</a>
             </td>
           </tr>`;
@@ -1906,16 +1929,7 @@ function vAdminTeam(){
   const recs=gRecs(),subs=gSubs(),ivws=gIvws(),p=S.fp;
   const ri=ivws.filter(i=>inP(i.date,p)&&i.reason);
   return `
-  <div class="filt" style="align-items:center;flex-wrap:wrap;gap:8px"><label>Period:</label>
-    <select onchange="S.fp=this.value;S.customFrom='';S.customTo='';go('admin-team')">
-      <option value="month" ${S.fp==='month'?'selected':''}>This Month</option>
-      <option value="week" ${S.fp==='week'?'selected':''}>This Week</option>
-      <option value="all" ${S.fp==='all'?'selected':''}>All Time</option>
-      <option value="custom" ${S.fp==='custom'?'selected':''}>Custom Range</option>
-    </select>
-    ${p==='custom'?`<label>From:</label><input type="date" id="cfrom2" value="${S.customFrom}" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px" onchange="S.customFrom=this.value;go('admin-team')">
-    <label>To:</label><input type="date" id="cto2" value="${S.customTo}" style="padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px" onchange="S.customTo=this.value;go('admin-team')">`:''}
-  </div>
+  ${periodFilterHTML('admin-team')}
   <div class="card"><div class="ct"><span>👥 Recruiter Performance</span></div>
     <div class="tw"><table>
       <thead><tr><th>Recruiter</th><th>Subs</th><th>Shortlisted</th><th>Selected</th><th>Rejected</th><th>Interviews</th><th>L1</th><th>L2</th><th>Final</th><th>Offer</th><th>Cleared</th><th>No-Show</th><th>Conv%</th><th>Target</th><th>View</th></tr></thead>
@@ -1957,12 +1971,7 @@ function vAdminClients(){
   const clients=clientObjs.map(clientName);
   return `
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
-    <div class="filt" style="margin-bottom:0"><label>Period:</label>
-      <select onchange="S.fp=this.value;go('admin-clients')">
-        <option value="month" ${S.fp==='month'?'selected':''}>This Month</option>
-        <option value="week" ${S.fp==='week'?'selected':''}>This Week</option>
-        <option value="all" ${S.fp==='all'?'selected':''}>All Time</option>
-      </select></div>
+    ${periodFilterHTML('admin-clients')}
     <button class="btn btn-p btn-s" onclick="openAddClient()">+ Add Client</button>
   </div>
   <div class="card" style="margin-bottom:14px"><div class="ct"><span>🏢 Client Directory (${clients.length})</span></div>
@@ -2096,6 +2105,67 @@ function vManageManagers(){
   </div>`;
 }
 
+// ── ADMIN SUBMISSIONS — CLIENT-WISE DAILY REVIEW ────────
+function vAdminSubs(){
+  const recs=gRecs();
+  const subs=gSubs().filter(s=>inP(s.date,S.fp));
+  const clientGroups={};
+  subs.forEach(s=>{const c=s.client||'(No Client)';(clientGroups[c]=clientGroups[c]||[]).push(s);});
+  const clientNames=Object.keys(clientGroups).sort((a,b)=>a.localeCompare(b));
+  const folderState=S.subFolderState||(S.subFolderState={});
+  return `
+  ${periodFilterHTML('admin-subs')}
+  <div class="card">
+    <div class="ct"><span>📄 Submissions — Client Wise (${subs.length})</span>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-s btn-o" onclick="toggleAllSubFolders(true)">Expand All</button>
+        <button class="btn btn-s btn-o" onclick="toggleAllSubFolders(false)">Collapse All</button>
+        <button class="btn btn-s btn-o" onclick="expCSV('subs')" title="Download CSV">⬇ CSV</button>
+      </div>
+    </div>
+    ${!clientNames.length?'<div class="empty"><div class="ei">📂</div>No submissions in this period.</div>':
+    clientNames.map(cname=>{
+      const list=clientGroups[cname].sort((a,b)=>b.date.localeCompare(a.date));
+      const isOpen=folderState[cname]!==false;
+      const escName=cname.replace(/'/g,"\\'");
+      return `<div style="border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden">
+        <div style="background:var(--bg);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:8px" onclick="toggleSubFolder('${escName}')">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span>${isOpen?'📂':'📁'}</span><span style="font-weight:700">${cname}</span>
+            <span style="font-size:11px;background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:10px;font-weight:700">${list.length} submission${list.length>1?'s':''}</span>
+          </div>
+          <span style="font-size:13px;color:var(--muted)">${isOpen?'▾':'▸'}</span>
+        </div>
+        ${isOpen?`<div class="tw"><table>
+          <thead><tr><th>Candidate</th><th>Recruiter</th><th>Phone</th><th>Email</th><th>Position</th><th>Date</th><th>Status</th><th>View</th></tr></thead>
+          <tbody>${list.map(s=>{
+            const rec=recs.find(r=>r.id===s.rId);
+            return `<tr>
+              <td style="font-weight:600;cursor:pointer;color:var(--p)" onclick="viewSubDetails('${s.id}')">${s.candidate}</td>
+              <td><span class="tag">${rec?rec.name:'—'}</span></td>
+              <td style="font-size:12px;white-space:nowrap"><a class="cl cl-phone" href="tel:${s.phone}">📞 ${s.phone||'—'}</a></td>
+              <td><a class="cl cl-email" href="mailto:${s.email}" style="font-size:11px">${s.email||'—'}</a></td>
+              <td style="font-size:12px">${s.position||'—'}</td>
+              <td style="white-space:nowrap">${s.date}${s.date===fmt(today)?'<span class="ht">Today</span>':''}</td>
+              <td><span class="pill p-${(s.status||'submitted').toLowerCase()}">${uc(s.status||'submitted')}</span></td>
+              <td><button class="btn btn-s btn-o" onclick="viewSubDetails('${s.id}')">👁</button></td>
+            </tr>`;
+          }).join('')}</tbody></table></div>`:''}
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+function toggleSubFolder(cname){
+  const fs=S.subFolderState||(S.subFolderState={});
+  fs[cname]=fs[cname]===false?true:false;
+  go('admin-subs');
+}
+function toggleAllSubFolders(open){
+  const subs=gSubs().filter(s=>inP(s.date,S.fp));
+  const fs=S.subFolderState||(S.subFolderState={});
+  [...new Set(subs.map(s=>s.client||'(No Client)'))].forEach(c=>fs[c]=open);
+  go('admin-subs');
+}
 
 // ══════════════════════════════════════════════════════
 // ── NEW FEATURES ──────────────────────────────────────
@@ -2115,12 +2185,7 @@ function vLeaderboard(){
   const medals=['🥇','🥈','🥉'];
   const podiumColors=['#f59e0b','#94a3b8','#cd7f32'];
   return `
-  <div class="filt"><label>Period:</label>
-    <select onchange="S.fp=this.value;go('admin-leaderboard')">
-      <option value="month" ${p==='month'?'selected':''}>This Month</option>
-      <option value="week" ${p==='week'?'selected':''}>This Week</option>
-      <option value="all" ${p==='all'?'selected':''}>All Time</option>
-    </select></div>
+  ${periodFilterHTML('admin-leaderboard')}
   ${ranked.length>=3?`
   <div style="display:flex;justify-content:center;align-items:flex-end;gap:16px;margin-bottom:20px">
     ${[1,0,2].map(i=>ranked[i]?`
@@ -4073,6 +4138,28 @@ function vAdminSettings(){
   </div>
 
   <div class="card">
+    <div class="ct"><span>📧 Candidate Email Automation (EmailJS)</span>
+      <span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:10px;${emailJSConfigured()?'background:#d1fae5;color:#065f46':'background:#fee2e2;color:#991b1b'}">${emailJSConfigured()?'● Active':'● Not configured'}</span>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Automatically emails the candidate the moment a recruiter schedules or reschedules an interview, using <a href="https://www.emailjs.com" target="_blank" style="color:var(--p)">EmailJS</a> (free tier available — no backend server needed). Create a free EmailJS account, connect your Gmail/Outlook, and paste the 3 keys below.</p>
+    <div id="ej-alt" style="margin-bottom:8px"></div>
+    <div class="fg2" style="margin-bottom:12px">
+      <div class="fg"><label>Public Key</label><input id="ejPub" value="${getEJConfig().pub}" placeholder="e.g. AbCdEfGh123"></div>
+      <div class="fg"><label>Service ID</label><input id="ejSvc" value="${getEJConfig().svc}" placeholder="e.g. service_xxxxx"></div>
+      <div class="fg"><label>Template ID</label><input id="ejTpl" value="${getEJConfig().tpl}" placeholder="e.g. template_xxxxx"></div>
+    </div>
+    <div style="display:flex;gap:9px;flex-wrap:wrap">
+      <button class="btn btn-p" onclick="saveEJConfig()">Save Settings</button>
+      <button class="btn btn-o" onclick="testEJEmail()">✉ Send Test Email</button>
+      ${emailJSConfigured()?'<button class="btn btn-d" onclick="clearEJConfig()">Turn Off Automation</button>':''}
+    </div>
+    <div style="margin-top:12px;padding:10px 12px;background:#f8fafc;border-radius:8px;border:1px dashed var(--border);font-size:11.5px;color:var(--muted);line-height:1.6">
+      Your EmailJS template's <b>Settings</b> tab needs: To Email = <code>{{to_email}}</code>, From Name = <code>{{from_name}}</code>, Subject = <code>{{subject}}</code>. To also copy the recruiter in on every candidate email, set <b>CC</b> = <code>{{cc_email}}</code> (this auto-fills with the recruiter's email on file — leave their email blank in Admin → Manage Recruiters to skip CC-ing them). In the template body, use <code>{{message}}</code> for the ready-made email text, or build a custom layout using: <code>{{to_name}}</code>, <code>{{recruiter_name}}</code>, <code>{{job_title}}</code>, <code>{{company}}</code>, <code>{{interview_stage}}</code>, <code>{{interview_date}}</code>, <code>{{interview_time}}</code>, <code>{{interview_mode}}</code>, <code>{{interviewer_name}}</code>, <code>{{meeting_link}}</code>.
+      A reminder is also raised in the 🔔 notification bell the day before each scheduled interview, visible to the recruiter, admin, and manager.
+    </div>
+  </div>
+
+  <div class="card">
     <div class="ct">
       <span>🚀 Suggested Features Roadmap</span>
       <span style="font-size:11px;color:var(--muted)">12 planned enhancements</span>
@@ -5670,6 +5757,107 @@ function prefillFromJD(jdId){
   },200);
 }
 
+// ── CANDIDATE EMAIL AUTOMATION (EmailJS) ─────────────────
+const EJK={pub:'rpt_ej_pubkey',svc:'rpt_ej_service',tpl:'rpt_ej_template'};
+function getEJConfig(){
+  return {pub:localStorage.getItem(EJK.pub)||'',svc:localStorage.getItem(EJK.svc)||'',tpl:localStorage.getItem(EJK.tpl)||''};
+}
+function emailJSConfigured(){
+  const c=getEJConfig();
+  return !!(c.pub&&c.svc&&c.tpl);
+}
+let _ejInited=false;
+function ensureEJ(){
+  const c=getEJConfig();
+  if(!c.pub||typeof emailjs==='undefined') return false;
+  if(!_ejInited){ try{ emailjs.init({publicKey:c.pub}); _ejInited=true; }catch(e){ console.warn('EmailJS init failed',e); } }
+  return _ejInited;
+}
+function saveEJConfig(){
+  const pub=(document.getElementById('ejPub')?.value||'').trim();
+  const svc=(document.getElementById('ejSvc')?.value||'').trim();
+  const tpl=(document.getElementById('ejTpl')?.value||'').trim();
+  localStorage.setItem(EJK.pub,pub); localStorage.setItem(EJK.svc,svc); localStorage.setItem(EJK.tpl,tpl);
+  _ejInited=false;
+  go('admin-settings');
+  const ok=emailJSConfigured();
+  showAlt('ej-alt',ok?'✓ Saved. Candidate emails will now send automatically on schedule/reschedule.':'Saved — but fill in all 3 fields to turn automation ON.',ok?'ok':'err');
+}
+function clearEJConfig(){
+  if(!confirm('Turn off candidate email automation? Saved keys will be removed from this browser.')) return;
+  Object.values(EJK).forEach(k=>localStorage.removeItem(k));
+  _ejInited=false; go('admin-settings');
+}
+function genCandidateEmailContent(ivw,kind){
+  const isResched=kind==='reschedule';
+  const subj=(isResched?'Interview Rescheduled — ':kind==='reminder'?'Interview Reminder — ':'Interview Confirmation — ')+(ivw.position||'Role')+' @ '+(ivw.client||'');
+  const body='Hi '+(ivw.candidate||'')+',\n\n'+
+    (isResched?'Your interview has been rescheduled. Updated details:\n\n':kind==='reminder'?'This is a friendly reminder about your upcoming interview:\n\n':'This confirms your interview has been scheduled. Details:\n\n')+
+    'Position   : '+(ivw.position||'—')+'\n'+
+    'Client     : '+(ivw.client||'—')+'\n'+
+    'Round      : '+(ivw.stage||'—')+'\n'+
+    'Date       : '+(ivw.date||'—')+'\n'+
+    'Time       : '+(ivw.time||'—')+'\n'+
+    'Mode       : '+(ivw.mode||'—')+'\n'+
+    (ivw.interviewer?'Interviewer: '+ivw.interviewer+'\n':'')+
+    (ivw.ivLink?'Link       : '+ivw.ivLink+'\n':'')+
+    '\nPlease be available 10 minutes before the scheduled time. All the best!\n\nRegards,\nThe Talent Company';
+  return {subj,body};
+}
+function markEmailStatus(ivwId,status){
+  const ivws=gIvws();
+  const i=ivws.findIndex(x=>x.id===ivwId); if(i<0) return;
+  ivws[i].emailStatus=status;
+  if(status==='sent') ivws[i].emailSentAt=new Date().toLocaleString('en-IN');
+  DB.s('ivws',ivws);
+  if(S.view==='interviews'){ const el=document.getElementById('itbl'); if(el) el.innerHTML=renderIvwsTbl(gIvws().filter(x=>x.rId===S.rId).sort((a,b)=>b.date.localeCompare(a.date))); }
+  if(S.view==='admin-schedule'&&typeof renderSched==='function') renderSched();
+  updateNotifBell();
+}
+function sendCandidateInterviewEmail(ivw,kind){
+  if(!ivw||!ivw.email) return;
+  if(!emailJSConfigured()||!ensureEJ()){ markEmailStatus(ivw.id,'skipped'); return; }
+  const c=getEJConfig();
+  const {subj,body}=genCandidateEmailContent(ivw,kind);
+  const rec=gRecs().find(r=>r.id===ivw.rId);
+  const params={to_email:ivw.email,to_name:ivw.candidate||'',from_name:'The Talent Company',
+    subject:subj,message:body,job_title:ivw.position||'',company:ivw.client||'',interview_stage:ivw.stage||'',
+    interview_date:ivw.date||'',interview_time:ivw.time||'',interview_mode:ivw.mode||'',
+    interviewer_name:ivw.interviewer||'',meeting_link:ivw.ivLink||'',
+    recruiter_name:rec?.name||'',cc_email:rec?.email||''};
+  emailjs.send(c.svc,c.tpl,params).then(function(){ markEmailStatus(ivw.id,'sent'); })
+    .catch(function(err){ console.warn('EmailJS send failed',err); markEmailStatus(ivw.id,'failed'); });
+}
+function resendCandidateEmail(ivwId){
+  const ivw=gIvws().find(x=>x.id===ivwId); if(!ivw) return;
+  if(!ivw.email){alert('No email on file for '+ivw.candidate+'. Add one by editing the interview record.');return;}
+  if(!emailJSConfigured()){alert('Email automation is not set up yet. Go to Admin → Settings → Candidate Email Automation.');return;}
+  sendCandidateInterviewEmail(ivw,'reminder');
+  if(typeof closeModal==='function') closeModal();
+  alert('Sending reminder email to '+ivw.candidate+'…');
+}
+function testEJEmail(){
+  if(!emailJSConfigured()){alert('Please fill in and save Public Key, Service ID, and Template ID first.');return;}
+  const testEmail=prompt('Send a test email to which address?');
+  if(!testEmail) return;
+  if(!ensureEJ()){alert('EmailJS failed to initialize. Double-check your Public Key.');return;}
+  const c=getEJConfig();
+  emailjs.send(c.svc,c.tpl,{to_email:testEmail,to_name:'Test Candidate',from_name:'The Talent Company',
+    subject:'HDL Consultants — Test Email',message:'This is a test email confirming your EmailJS integration is working correctly.',
+    job_title:'Test Role',company:'Test Client',interview_stage:'L1',interview_date:fmt(today),interview_time:'11:00 AM',
+    interview_mode:'Video',interviewer_name:'Test Interviewer',meeting_link:'',recruiter_name:'Test Recruiter',cc_email:''
+  }).then(function(){alert('✓ Test email sent! Check '+testEmail+'.');})
+    .catch(function(err){alert('✗ Failed to send: '+(err&&err.text?err.text:JSON.stringify(err)));});
+}
+function emailStatusBadge(i){
+  if(!i.emailStatus) return '';
+  const map={sent:'✅',failed:'⚠️',skipped:'➖'};
+  const title={sent:'Interview email sent to candidate'+(i.emailSentAt?' on '+i.emailSentAt:''),
+    failed:'Email failed to send — check EmailJS settings in Admin → Settings',
+    skipped:'Not sent — email automation is not configured yet'};
+  return ' <span title="'+(title[i.emailStatus]||'')+'" style="font-size:11px;cursor:help">'+(map[i.emailStatus]||'')+'</span>';
+}
+
 // ── NOTIFICATIONS & FOLLOW-UP ENGINE ─────────────────────
 function daysDiff(d1,d2){
   const a=new Date((d1||'2099-01-01')+'T00:00:00');
@@ -5710,6 +5898,15 @@ function calcFollowUp(recId){
       }
     }
   });
+  // Rule 4: interview happening tomorrow — remind the candidate
+  (recId?allIvws.filter(i=>i.rId===recId):allIvws).filter(i=>i.outcome==='scheduled'&&i.date&&i.date>todayStr).forEach(i=>{
+    const daysUntil=daysDiff(todayStr,i.date);
+    if(daysUntil<=1){
+      const already=i.emailStatus==='sent';
+      items.push({type:'interview_reminder',sev:daysUntil===0?'high':'medium',candidate:i.candidate,client:i.client||'',subId:null,ivwId:i.id,days:daysUntil,recId:i.rId,
+        msg:(i.stage||'Interview')+' on '+i.date+(i.time?' at '+i.time:'')+(already?' — confirmation already emailed':i.email?' — remind candidate':' — no email on file, call/WhatsApp instead')});
+    }
+  });
   return items.sort((a,b)=>b.days-a.days);
 }
 function updateNotifBell(){
@@ -5740,7 +5937,8 @@ function openNotifPanel(){
         '<div style="font-size:12px;color:var(--muted)">'+it.client+(rec&&S.role!=='rec'?' · '+rec.name:'')+'</div>'+
         '<div style="font-size:12px;color:'+SCL[it.sev]+';margin-top:3px">'+it.msg+'</div></div>'+
         '<div style="display:flex;flex-direction:column;gap:6px">'+
-        (it.ivwId?'<button class="btn btn-s btn-p" onclick="quickUpdateOutcome(\''+it.ivwId+'\')">Update Outcome</button>':'')+
+        (it.type==='interview_reminder'?'<button class="btn btn-s btn-p" onclick="resendCandidateEmail(\''+it.ivwId+'\')">📧 Email Candidate</button>':'')+
+        (it.type!=='interview_reminder'&&it.ivwId?'<button class="btn btn-s btn-p" onclick="quickUpdateOutcome(\''+it.ivwId+'\')">Update Outcome</button>':'')+
         (it.subId?'<button class="btn btn-s btn-o" onclick="quickUpdateStatus(\''+it.subId+'\')">Update Status</button>':'')+
         '</div></div>';
     }).join('')+
